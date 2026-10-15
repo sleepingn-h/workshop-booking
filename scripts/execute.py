@@ -110,8 +110,16 @@ class StepExecutor:
         cmd = ["git"] + list(args)
         return subprocess.run(cmd, cwd=self._root, capture_output=True, text=True)
 
+    def _branch_name(self) -> str:
+        """phases/index.json의 branch(모든 phase 공용). 없으면 feat-{phase}."""
+        if self._top_index_file.exists():
+            branch = self._read_json(self._top_index_file).get("branch")
+            if branch:
+                return branch
+        return f"feat-{self._phase_name}"
+
     def _checkout_branch(self):
-        branch = f"feat-{self._phase_name}"
+        branch = self._branch_name()
 
         r = self._run_git("rev-parse", "--abbrev-ref", "HEAD")
         if r.returncode != 0:
@@ -184,6 +192,27 @@ class StepExecutor:
             for doc in sorted(docs_dir.glob("*.md")):
                 sections.append(f"## {doc.stem}\n\n{doc.read_text()}")
         return "\n\n---\n\n".join(sections) if sections else ""
+
+    def _build_prev_phase_context(self) -> str:
+        """phases/index.json에서 현재 phase보다 앞선 phase들의 완료 summary."""
+        if not self._top_index_file.exists():
+            return ""
+        lines = []
+        for phase in self._read_json(self._top_index_file).get("phases", []):
+            dir_name = phase.get("dir")
+            if dir_name == self._phase_dir_name:
+                break
+            index_file = self._phases_dir / dir_name / "index.json"
+            if not index_file.exists():
+                continue
+            lines += [
+                f"- {dir_name} Step {s['step']} ({s['name']}): {s['summary']}"
+                for s in self._read_json(index_file).get("steps", [])
+                if s.get("status") == "completed" and s.get("summary")
+            ]
+        if not lines:
+            return ""
+        return "## 이전 Phase 산출물\n\n" + "\n".join(lines) + "\n\n"
 
     @staticmethod
     def _build_step_context(index: dict) -> str:
@@ -296,10 +325,11 @@ class StepExecutor:
         step_num, step_name = step["step"], step["name"]
         done = sum(1 for s in self._read_json(self._index_file)["steps"] if s["status"] == "completed")
         prev_error = None
+        prev_phase_context = self._build_prev_phase_context()
 
         for attempt in range(1, self.MAX_RETRIES + 1):
             index = self._read_json(self._index_file)
-            step_context = self._build_step_context(index)
+            step_context = prev_phase_context + self._build_step_context(index)
             preamble = self._build_preamble(guardrails, step_context, prev_error)
 
             tag = f"Step {step_num}/{self._total - 1} ({done} done): {step_name}"
@@ -393,7 +423,7 @@ class StepExecutor:
                 print(f"  ✓ {msg}")
 
         if self._auto_push:
-            branch = f"feat-{self._phase_name}"
+            branch = self._branch_name()
             r = self._run_git("push", "-u", "origin", branch)
             if r.returncode != 0:
                 print(f"\n  ERROR: git push 실패: {r.stderr.strip()}")

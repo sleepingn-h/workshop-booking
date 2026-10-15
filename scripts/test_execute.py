@@ -228,6 +228,95 @@ class TestBuildStepContext:
 
 
 # ---------------------------------------------------------------------------
+# _build_prev_phase_context
+# ---------------------------------------------------------------------------
+
+def _write_phase(tmp_project, dir_name, steps):
+    d = tmp_project / "phases" / dir_name
+    d.mkdir()
+    index = {"project": "TestProject", "phase": dir_name, "steps": steps}
+    (d / "index.json").write_text(json.dumps(index, ensure_ascii=False))
+    return d
+
+
+@pytest.fixture
+def multi_phase(tmp_project, phase_dir):
+    """현재 phase(0-mvp) 앞뒤로 phase가 있는 top-level index."""
+    _write_phase(tmp_project, "a-base", [
+        {"step": 0, "name": "scaffold", "status": "completed", "summary": "Next.js 스캐폴드"},
+        {"step": 1, "name": "nosum", "status": "completed"},
+    ])
+    _write_phase(tmp_project, "b-rules", [
+        {"step": 0, "name": "rules", "status": "completed", "summary": "lib/rules.ts 작성"},
+        {"step": 1, "name": "later", "status": "pending"},
+    ])
+    _write_phase(tmp_project, "z-after", [
+        {"step": 0, "name": "after", "status": "completed", "summary": "다음 phase 산출물"},
+    ])
+    top = {"phases": [
+        {"dir": "a-base", "status": "completed"},
+        {"dir": "b-rules", "status": "completed"},
+        {"dir": "0-mvp", "status": "pending"},
+        {"dir": "z-after", "status": "pending"},
+    ]}
+    p = tmp_project / "phases" / "index.json"
+    p.write_text(json.dumps(top))
+    return p
+
+
+class TestBuildPrevPhaseContext:
+    def test_includes_earlier_phase_summaries(self, executor, multi_phase):
+        result = executor._build_prev_phase_context()
+        assert "a-base Step 0 (scaffold): Next.js 스캐폴드" in result
+        assert "b-rules Step 0 (rules): lib/rules.ts 작성" in result
+
+    def test_keeps_top_index_order(self, executor, multi_phase):
+        result = executor._build_prev_phase_context()
+        assert result.index("a-base") < result.index("b-rules")
+
+    def test_excludes_current_and_later_phases(self, executor, multi_phase):
+        result = executor._build_prev_phase_context()
+        assert "프로젝트 초기화 완료" not in result
+        assert "z-after" not in result
+
+    def test_excludes_pending_and_missing_summary(self, executor, multi_phase):
+        result = executor._build_prev_phase_context()
+        assert "nosum" not in result
+        assert "later" not in result
+
+    def test_has_header(self, executor, multi_phase):
+        result = executor._build_prev_phase_context()
+        assert result.startswith("## 이전 Phase 산출물")
+
+    def test_skips_phase_without_index(self, executor, multi_phase, tmp_project):
+        (tmp_project / "phases" / "b-rules" / "index.json").unlink()
+        result = executor._build_prev_phase_context()
+        assert "a-base" in result
+        assert "b-rules" not in result
+
+    def test_empty_when_first_phase(self, executor, top_index):
+        assert executor._build_prev_phase_context() == ""
+
+    def test_empty_without_top_index(self, executor):
+        assert executor._build_prev_phase_context() == ""
+
+    def test_passed_to_codex_prompt(self, executor, multi_phase):
+        captured = {}
+
+        def fake_invoke(step, preamble):
+            captured["preamble"] = preamble
+            index = json.loads(executor._index_file.read_text())
+            index["steps"][2]["status"] = "completed"
+            executor._index_file.write_text(json.dumps(index))
+
+        executor._invoke_codex = fake_invoke
+        executor._commit_step = lambda *a: None
+        executor._execute_single_step({"step": 2, "name": "ui"}, "")
+        assert "## 이전 Phase 산출물" in captured["preamble"]
+        assert "## 이전 Step 산출물" in captured["preamble"]
+
+
+# ---------------------------------------------------------------------------
 # _build_preamble
 # ---------------------------------------------------------------------------
 
@@ -336,6 +425,44 @@ class TestCheckoutBranch:
                 return responses[idx]
             return MagicMock(returncode=0, stdout="", stderr="")
         executor._run_git = fake_git
+
+    def _record_git(self, executor, head):
+        calls = []
+        def fake_git(*args):
+            calls.append(args)
+            if args[:2] == ("rev-parse", "--abbrev-ref"):
+                return MagicMock(returncode=0, stdout=f"{head}\n", stderr="")
+            return MagicMock(returncode=1 if args[0] == "rev-parse" else 0, stdout="", stderr="")
+        executor._run_git = fake_git
+        return calls
+
+    def test_branch_from_top_index(self, executor, top_index):
+        data = json.loads(top_index.read_text())
+        data["branch"] = "feat-shared"
+        top_index.write_text(json.dumps(data))
+        assert executor._branch_name() == "feat-shared"
+
+    def test_branch_fallback_without_field(self, executor, top_index):
+        assert executor._branch_name() == "feat-mvp"
+
+    def test_branch_fallback_without_top_index(self, executor):
+        assert executor._branch_name() == "feat-mvp"
+
+    def test_shared_branch_skips_checkout(self, executor, top_index):
+        data = json.loads(top_index.read_text())
+        data["branch"] = "feat-shared"
+        top_index.write_text(json.dumps(data))
+        calls = self._record_git(executor, "feat-shared")
+        executor._checkout_branch()
+        assert not any(c[0] == "checkout" for c in calls)
+
+    def test_creates_shared_branch(self, executor, top_index):
+        data = json.loads(top_index.read_text())
+        data["branch"] = "feat-shared"
+        top_index.write_text(json.dumps(data))
+        calls = self._record_git(executor, "main")
+        executor._checkout_branch()
+        assert ("checkout", "-b", "feat-shared") in calls
 
     def test_already_on_branch(self, executor):
         self._mock_git(executor, [
