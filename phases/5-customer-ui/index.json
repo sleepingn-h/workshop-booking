@@ -1,0 +1,10 @@
+{
+  "project": "workshop-booking",
+  "phase": "5-customer-ui",
+  "steps": [
+    { "step": 0, "name": "status-badge", "status": "pending" },
+    { "step": 1, "name": "booking-form", "status": "pending" },
+    { "step": 2, "name": "customer-pages", "status": "pending" },
+    { "step": 3, "name": "booking-lookup", "status": "pending" }
+  ]
+}

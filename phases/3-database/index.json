@@ -1,0 +1,9 @@
+{
+  "project": "workshop-booking",
+  "phase": "3-database",
+  "steps": [
+    { "step": 0, "name": "db-schema", "status": "pending" },
+    { "step": 1, "name": "db-bookings", "status": "pending" },
+    { "step": 2, "name": "db-catalog", "status": "pending" }
+  ]
+}

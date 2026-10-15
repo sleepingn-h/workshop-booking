@@ -1,0 +1,7 @@
+{
+  "project": "workshop-booking",
+  "phase": "7-readme",
+  "steps": [
+    { "step": 0, "name": "readme", "status": "pending" }
+  ]
+}

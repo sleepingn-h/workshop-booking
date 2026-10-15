@@ -1,0 +1,37 @@
+{
+  "branch": "feat-mvp",
+  "phases": [
+    {
+      "dir": "0-foundation",
+      "status": "pending"
+    },
+    {
+      "dir": "1-domain-rules",
+      "status": "pending"
+    },
+    {
+      "dir": "2-admin-auth",
+      "status": "pending"
+    },
+    {
+      "dir": "3-database",
+      "status": "pending"
+    },
+    {
+      "dir": "4-api",
+      "status": "pending"
+    },
+    {
+      "dir": "5-customer-ui",
+      "status": "pending"
+    },
+    {
+      "dir": "6-admin-ui",
+      "status": "pending"
+    },
+    {
+      "dir": "7-readme",
+      "status": "pending"
+    }
+  ]
+}

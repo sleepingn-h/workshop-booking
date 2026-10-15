@@ -1,0 +1,9 @@
+{
+  "project": "workshop-booking",
+  "phase": "6-admin-ui",
+  "steps": [
+    { "step": 0, "name": "admin-bookings-ui", "status": "pending" },
+    { "step": 1, "name": "admin-class-ui", "status": "pending" },
+    { "step": 2, "name": "admin-session-ui", "status": "pending" }
+  ]
+}

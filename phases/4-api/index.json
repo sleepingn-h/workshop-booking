@@ -1,0 +1,10 @@
+{
+  "project": "workshop-booking",
+  "phase": "4-api",
+  "steps": [
+    { "step": 0, "name": "api-client", "status": "pending" },
+    { "step": 1, "name": "api-public", "status": "pending" },
+    { "step": 2, "name": "api-admin-bookings", "status": "pending" },
+    { "step": 3, "name": "api-admin-catalog", "status": "pending" }
+  ]
+}

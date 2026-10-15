@@ -1,0 +1,8 @@
+{
+  "project": "workshop-booking",
+  "phase": "2-admin-auth",
+  "steps": [
+    { "step": 0, "name": "admin-auth", "status": "pending" },
+    { "step": 1, "name": "admin-proxy", "status": "pending" }
+  ]
+}

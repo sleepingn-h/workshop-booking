@@ -1,0 +1,7 @@
+{
+  "project": "workshop-booking",
+  "phase": "1-domain-rules",
+  "steps": [
+    { "step": 0, "name": "domain-rules", "status": "pending" }
+  ]
+}
