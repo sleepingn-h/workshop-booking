@@ -4,10 +4,15 @@
 `src/` 없이 프로젝트 루트에 둔다. 구현 파일마다 같은 폴더에 테스트 파일이 있다(아래 "테스트" 참고).
 ```
 app/
-├── page.tsx                                  # /  클래스 목록 (요청 시 서버 렌더링)
-├── classes/[id]/page.tsx                     # 클래스 상세·예약 신청
-├── bookings/complete/page.tsx                # 신청 완료 (?code=)
-├── bookings/lookup/page.tsx                  # 예약 조회·취소
+├── layout.tsx                                # 루트 레이아웃 (폰트·메타데이터·QueryProvider·토스트)
+├── globals.css                               # UI_GUIDE 토큰
+├── (site)/                                   # 고객 화면 route group (URL에 포함되지 않음)
+│   ├── layout.tsx                            # 고객 헤더
+│   ├── page.tsx                              # /  클래스 목록 (요청 시 서버 렌더링)
+│   ├── classes/[id]/page.tsx                 # 클래스 상세·예약 신청
+│   ├── bookings/complete/page.tsx            # 신청 완료 (?code=)
+│   └── bookings/lookup/page.tsx              # 예약 조회·취소
+├── admin/layout.tsx                          # 운영자 헤더·noindex
 ├── admin/login/page.tsx                      # 운영자 로그인
 ├── admin/page.tsx                            # 운영자 예약 목록
 ├── admin/classes/page.tsx                    # 운영자 클래스 목록 (/new: 생성)
@@ -29,8 +34,13 @@ app/
         └── sessions/[id]/cancel/route.ts     # POST 회차 취소
 components/
 ├── ui/                                       # shadcn/ui (CLI로 추가, 직접 수정하지 않음)
+├── query-provider.tsx (+ .test.tsx)          # TanStack Query Provider
+├── status-badge.tsx (+ .test.tsx)            # 예약 상태 배지·클래스/회차 태그
+├── copy-button.tsx (+ .test.tsx)             # 예약번호 복사
 ├── booking-form.tsx (+ .test.tsx)            # 신청 폼
 ├── booking-lookup.tsx (+ .test.tsx)          # 조회·취소
+├── admin-login-form.tsx (+ .test.tsx)        # 운영자 로그인 폼
+├── admin-header.tsx (+ .test.tsx)            # 운영자 내비·로그아웃
 ├── admin-booking-list.tsx (+ .test.tsx)      # 운영자 예약 목록·검색
 ├── admin-class-form.tsx (+ .test.tsx)        # 클래스 생성·수정·이미지
 └── admin-session-list.tsx (+ .test.tsx)      # 회차 관리
@@ -39,6 +49,8 @@ lib/
 ├── rules.ts (+ .test.ts)                     # 순수 함수: 자리·전이·기한·입력 검증·전화번호 정규화
 ├── db.ts (+ .test.ts)                        # Supabase(DB·Storage) 호출 + 요청 처리 순서
 ├── auth.ts (+ .test.ts)                      # 운영자 쿠키 서명·검증 (node:crypto HMAC)
+├── format.ts (+ .test.ts)                    # Asia/Seoul 시각 표시·입력 변환
+├── http.ts (+ .test.ts)                      # Route Handler 공용: JSON 파싱, 운영자 확인, 에러 → HTTP 응답
 └── api.ts (+ .test.ts)                       # 브라우저 fetch + 에러 처리
 proxy.ts (+ .test.ts)                         # /admin 접근 보호 (Next.js 16, Node.js 런타임)
 supabase/
