@@ -15,7 +15,8 @@
       "name": "ui-foundation",
       "status": "completed",
       "started_at": "2026-10-17T15:57:53+0900",
-      "summary": "--color-*·--surface-*·--text-*·--border-*·--status-*·--badge-{상태}-{bg|text}·--radius-*·--shadow-* 토큰과 shadcn 테마 연결, 한·영 폰트·루트 레이아웃·Toaster, QueryProvider 및 formatKstDateTime·formatKstDate·formatKstTime·isoToKstInput·kstInputToIso 구현과 테스트 35개 통과"
+      "summary": "--color-*·--surface-*·--text-*·--border-*·--status-*·--badge-{상태}-{bg|text}·--radius-*·--shadow-* 토큰과 shadcn 테마 연결, 한·영 폰트·루트 레이아웃·Toaster, QueryProvider 및 formatKstDateTime·formatKstDate·formatKstTime·isoToKstInput·kstInputToIso 구현과 테스트 35개 통과",
+      "completed_at": "2026-10-17T16:02:46+0900"
     }
   ],
   "created_at": "2026-10-17T15:52:51+0900"
