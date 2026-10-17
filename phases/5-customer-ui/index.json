@@ -13,7 +13,9 @@
     {
       "step": 1,
       "name": "booking-form",
-      "status": "pending"
+      "status": "completed",
+      "summary": "BookingForm 구현: KST 회차·인원·입력 검증, useMutation 신청·완료 이동, 실패 입력 유지·router.refresh·선택 해제, 모바일 하단 고정 버튼 및 API fields 전달; 신규 테스트 26개·전체 668개와 AC 통과",
+      "started_at": "2026-10-17T16:47:19+0900"
     },
     {
       "step": 2,

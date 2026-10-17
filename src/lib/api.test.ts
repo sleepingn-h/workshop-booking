@@ -167,6 +167,31 @@ describe("apiFetch 응답", () => {
     expect(error).toMatchObject({ code: "VALIDATION_ERROR", message, status: 400 });
   });
 
+  it("입력 오류 응답의 fields를 ApiError에 보존한다", async () => {
+    const fields = { phone: "전화번호를 다시 확인해 주세요." };
+    fetchMock.mockResolvedValue(Response.json(
+      { error: { code: "VALIDATION_ERROR", message: "입력 내용을 확인해 주세요.", fields } },
+      { status: 400 },
+    ));
+
+    const error = await apiFetch("/api/bookings", { method: "POST" }).catch((error: unknown) => error);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: "VALIDATION_ERROR", status: 400, fields });
+  });
+
+  it.each([{ fields: null }, { fields: [] }, { fields: "phone" }, { fields: { phone: 123 } }])("잘못된 fields $fields는 무시하고 오류 메시지를 유지한다", async ({ fields }) => {
+    fetchMock.mockResolvedValue(Response.json(
+      { error: { code: "VALIDATION_ERROR", message: "입력 내용을 확인해 주세요.", fields } },
+      { status: 400 },
+    ));
+
+    const error = await apiFetch("/api/bookings").catch((error: unknown) => error);
+
+    expect(error).toMatchObject({ code: "VALIDATION_ERROR", message: "입력 내용을 확인해 주세요." });
+    expect((error as ApiError).fields).toBeUndefined();
+  });
+
   it("R-11: 409 SESSION_FULL을 해당 code·message·status의 ApiError로 변환한다", async () => {
     fetchMock.mockResolvedValue(Response.json(
       { error: { code: "SESSION_FULL", message: ERROR_MESSAGE.SESSION_FULL } },

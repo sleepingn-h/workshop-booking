@@ -7,6 +7,7 @@ export class ApiError extends Error {
     public code: ClientErrorCode,
     message: string,
     public status: number,
+    public fields?: Record<string, string>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -64,7 +65,14 @@ export async function apiFetch<T>(
       typeof error.message === "string"
     ) {
       const code = ERROR_CODES.find((code) => code === error.code);
-      if (code) throw new ApiError(code, error.message, response.status);
+      if (code) {
+        const fields = "fields" in error && error.fields !== null &&
+          typeof error.fields === "object" && !Array.isArray(error.fields) &&
+          Object.values(error.fields).every((value) => typeof value === "string")
+          ? error.fields as Record<string, string>
+          : undefined;
+        throw new ApiError(code, error.message, response.status, fields);
+      }
     }
   }
 
