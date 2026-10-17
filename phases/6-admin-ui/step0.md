@@ -16,7 +16,7 @@
 
 각 컴포넌트의 테스트를 **먼저 별도 패치로** 작성한 뒤 구현한다.
 
-### 1. `components/admin-login-form.tsx` (+ test)
+### 1. `src/components/admin-login-form.tsx` (+ test)
 
 ```tsx
 'use client';
@@ -25,7 +25,7 @@ export function AdminLoginForm(): JSX.Element;
 - 비밀번호 입력(`type="password"`, 라벨) + primary "로그인" 버튼. `useMutation`으로 `POST /api/admin/login`. 성공 → `router.replace('/admin')` + `router.refresh()`. 실패 → 입력 유지, "비밀번호가 올바르지 않습니다" 오류 박스. 제출 중 비활성.
 - 테스트: 빈 값 제출 방지, 성공 시 이동, 401 시 오류 표시, 제출 중 비활성.
 
-### 2. `components/admin-header.tsx` (+ test)
+### 2. `src/components/admin-header.tsx` (+ test)
 
 ```tsx
 'use client';
@@ -36,7 +36,7 @@ export function AdminHeader(): JSX.Element;
 - 640px 이하에서는 내비를 헤더 아래 줄로 내린다.
 - 테스트: 로그인 경로에서 로그아웃 숨김, 다른 경로에서 로그아웃 클릭 시 API 호출과 이동, 현재 내비 `aria-current="page"`.
 
-### 3. `components/admin-booking-list.tsx` (+ test)
+### 3. `src/components/admin-booking-list.tsx` (+ test)
 
 ```tsx
 'use client';
@@ -57,9 +57,9 @@ export function AdminBookingList(): JSX.Element;
 
 ### 4. 페이지
 
-- `app/admin/layout.tsx`: `metadata.robots = { index: false, follow: false }`, `<AdminHeader />` + 본문 컨테이너.
-- `app/admin/login/page.tsx`: 화면 중앙 카드에 `<AdminLoginForm />`.
-- `app/admin/page.tsx`: 제목 "예약 관리" + `<AdminBookingList />`.
+- `src/app/admin/layout.tsx`: `metadata.robots = { index: false, follow: false }`, `<AdminHeader />` + 본문 컨테이너.
+- `src/app/admin/login/page.tsx`: 화면 중앙 카드에 `<AdminLoginForm />`.
+- `src/app/admin/page.tsx`: 제목 "예약 관리" + `<AdminBookingList />`.
 
 ## Acceptance Criteria
 
@@ -67,19 +67,19 @@ export function AdminBookingList(): JSX.Element;
 npm run lint
 npm run build
 npm run test
-for c in admin-login-form admin-header admin-booking-list; do test -f "components/$c.test.tsx" || { echo "missing $c test"; exit 1; }; done
-grep -q "index: false" app/admin/layout.tsx
-grep -q "invalidateQueries" components/admin-booking-list.tsx
-! grep -rnE "@/lib/db|@/lib/auth|@supabase|server-only" components/
+for c in admin-login-form admin-header admin-booking-list; do test -f "src/components/$c.test.tsx" || { echo "missing $c test"; exit 1; }; done
+grep -q "index: false" src/app/admin/layout.tsx
+grep -q "invalidateQueries" src/components/admin-booking-list.tsx
+! grep -rnE "@/lib/db|@/lib/auth|@supabase|server-only" src/components/
 ! grep -rqE "SUPABASE_SERVICE_ROLE_KEY|ADMIN_PASSWORD|ADMIN_SESSION_SECRET" .next/static
-git diff --quiet HEAD -- components/ui/
+git diff --quiet HEAD -- src/components/ui/
 ```
 
 ## 검증 절차
 
 1. 위 AC 커맨드를 실행한다.
 2. 아키텍처 체크리스트를 확인한다:
-   - 운영자 페이지가 모두 noindex이고 `proxy.ts`로 보호되는가?
+   - 운영자 페이지가 모두 noindex이고 `src/proxy.ts`로 보호되는가?
    - 상태 변경이 동작별 엔드포인트를 쓰는가?
    - 비밀값이 브라우저 번들(`.next/static`)에 없는가?
    - UI_GUIDE 900px 표 → 카드 전환
@@ -91,7 +91,7 @@ git diff --quiet HEAD -- components/ui/
 ## 금지사항
 
 - 로그인 상태를 localStorage·쿠키 직접 조작으로 관리하지 마라. 이유: 인증은 httpOnly 쿠키로만 유지한다(ARCHITECTURE "인증 상태").
-- 클라이언트 컴포넌트에서 `lib/auth.ts`·`lib/db.ts`를 import하지 마라. 이유: 비밀값이 브라우저 번들에 들어갈 수 있다.
+- 클라이언트 컴포넌트에서 `src/lib/auth.ts`·`src/lib/db.ts`를 import하지 마라. 이유: 비밀값이 브라우저 번들에 들어갈 수 있다.
 - 실시간 갱신(폴링·웹소켓)을 넣지 마라. 이유: PLAN 8절 — 다시 조회할 때 반영한다.
 - 클래스 관리 화면을 만들지 마라. 이유: step 1, 2의 범위다.
 - 기존 테스트를 깨뜨리지 마라

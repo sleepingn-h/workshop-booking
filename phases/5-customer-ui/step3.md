@@ -14,7 +14,7 @@
 
 ## 작업
 
-`components/booking-lookup.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 구현한다.
+`src/components/booking-lookup.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 구현한다.
 
 ```tsx
 'use client';
@@ -34,7 +34,7 @@ export function BookingLookup({ initialCode }: { initialCode?: string }): JSX.El
 - 취소: `canCancel`일 때만 ghost "예약 취소" 버튼 → 확인 다이얼로그(ink "예약 취소" / ghost "돌아가기") → `useMutation`으로 `POST /api/bookings/{code}/cancel { phoneLast4 }` → 성공 시 `['booking', code, phoneLast4]` 쿼리 무효화 + 토스트. 실패 시 서버 메시지 표시(`CANCEL_DEADLINE_PASSED` 등). 제출 중 비활성.
 - 키보드만으로 입력·제출·다이얼로그 확인이 가능해야 한다.
 
-`app/(site)/bookings/lookup/page.tsx`:
+`src/app/(site)/bookings/lookup/page.tsx`:
 
 - 서버 컴포넌트. `searchParams`의 `code`를 `initialCode`로 넘긴다. DB를 조회하지 않는다.
 - `metadata.robots = { index: false, follow: false }`.
@@ -56,11 +56,11 @@ export function BookingLookup({ initialCode }: { initialCode?: string }): JSX.El
 npm run lint
 npm run build
 npm run test
-test -f components/booking-lookup.test.tsx && test -f "app/(site)/bookings/lookup/page.tsx"
-grep -q "index: false" "app/(site)/bookings/lookup/page.tsx"
-grep -q "invalidateQueries" components/booking-lookup.tsx
-! grep -nE "localStorage|sessionStorage|router\.(push|replace)\([^)]*phoneLast4" components/booking-lookup.tsx
-git diff --quiet HEAD -- components/ui/
+test -f src/components/booking-lookup.test.tsx && test -f "src/app/(site)/bookings/lookup/page.tsx"
+grep -q "index: false" "src/app/(site)/bookings/lookup/page.tsx"
+grep -q "invalidateQueries" src/components/booking-lookup.tsx
+! grep -nE "localStorage|sessionStorage|router\.(push|replace)\([^)]*phoneLast4" src/components/booking-lookup.tsx
+git diff --quiet HEAD -- src/components/ui/
 ```
 
 ## 검증 절차

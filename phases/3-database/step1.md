@@ -4,17 +4,17 @@
 
 먼저 아래 파일들을 읽고 프로젝트의 아키텍처와 설계 의도를 파악하라:
 
-- `/docs/ARCHITECTURE.md` ("처리 순서는 lib/db.ts", "요청 시각", 데이터 흐름)
+- `/docs/ARCHITECTURE.md` ("처리 순서는 src/lib/db.ts", "요청 시각", 데이터 흐름)
 - `/docs/ADR.md` (ADR-002, ADR-003, ADR-005, ADR-009)
-- `/docs/SPEC.md` 3절, 5절(응답 내용·에러 코드), 6절 `lib/db.ts` 행
+- `/docs/SPEC.md` 3절, 5절(응답 내용·에러 코드), 6절 `src/lib/db.ts` 행
 - `/lib/types.ts`, `/lib/rules.ts` (`1-domain-rules` step 0)
 - `/supabase/schema.sql` (step 0 — 테이블·뷰 `session_stats`·RPC 시그니처와 에러 규약)
 
 ## 작업
 
-`lib/db.test.ts`를 **먼저 별도 패치로** 작성한 뒤 `lib/db.ts`를 구현한다. 이 step은 공개 조회와 예약 관련 함수만 만든다. 클래스·회차 관리 함수는 step 2에서 같은 파일에 추가한다.
+`src/lib/db.test.ts`를 **먼저 별도 패치로** 작성한 뒤 `src/lib/db.ts`를 구현한다. 이 step은 공개 조회와 예약 관련 함수만 만든다. 클래스·회차 관리 함수는 step 2에서 같은 파일에 추가한다.
 
-### 공통 (`lib/db.ts`)
+### 공통 (`src/lib/db.ts`)
 
 ```ts
 import 'server-only';
@@ -48,7 +48,7 @@ export async function changeBookingStatus(id: string, action: BookingAction): Pr
 - `changeBookingStatus`: 예약·회차 조회(없으면 `NOT_FOUND`) → `canTransition(status, action, 'admin', {startsAt, now})` → `rpc('admin_set_booking_status', {..., p_now})`.
 - 컬럼명(snake_case) → DTO(camelCase) 변환은 이 파일 안에서 한다.
 
-### `lib/db.test.ts`
+### `src/lib/db.test.ts`
 
 - `vi.mock('@supabase/supabase-js')`로 `createClient`를 모킹한다. 쿼리 빌더 체인(`from().select().eq()...`)과 `rpc`를 흉내 내는 작은 테스트 헬퍼를 테스트 파일 안에 둔다.
 - `vi.useFakeTimers(); vi.setSystemTime(...)`으로 시각을 고정한다.
@@ -71,10 +71,10 @@ export async function changeBookingStatus(id: string, action: BookingAction): Pr
 npm run lint
 npm run build
 npm run test
-grep -q "server-only" lib/db.ts
-grep -q "p_now" lib/db.ts
-! grep -n "\.or(" lib/db.ts
-! grep -nE "^const .*createClient\(" lib/db.ts
+grep -q "server-only" src/lib/db.ts
+grep -q "p_now" src/lib/db.ts
+! grep -n "\.or(" src/lib/db.ts
+! grep -nE "^const .*createClient\(" src/lib/db.ts
 ```
 
 ## 검증 절차
@@ -92,7 +92,7 @@ grep -q "p_now" lib/db.ts
 ## 금지사항
 
 - 실제 Supabase에 접속하는 테스트를 만들지 마라. 이유: ADR-004 — 실제 DB 자동 테스트는 두지 않는다.
-- `lib/db.ts` 밖에 Service·Repository·저장소 추상화를 만들지 마라. 이유: ADR-002.
+- `src/lib/db.ts` 밖에 Service·Repository·저장소 추상화를 만들지 마라. 이유: ADR-002.
 - Supabase 클라이언트를 모듈 최상단에서 생성하지 마라. 이유: 환경 변수 없이 `npm run build`가 통과해야 한다.
 - 고객 조회 응답에 전체 전화번호·내부 id를 넣지 마라. 이유: 개인정보 최소 노출. 운영자 목록에만 전체 전화번호를 제공한다.
 - 검색어 `q`를 PostgREST 필터 문자열에 보간하지 마라. 이유: 필터 문법 주입이 가능하다. RPC 인자로 넘긴다.

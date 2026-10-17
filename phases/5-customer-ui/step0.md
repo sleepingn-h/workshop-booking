@@ -13,9 +13,9 @@
 
 ## 작업
 
-여러 화면(예약 조회, 운영자 예약 목록, 클래스·회차 관리)이 함께 쓰는 상태 배지 컴포넌트를 만든다. `components/status-badge.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 `components/status-badge.tsx`를 구현한다.
+여러 화면(예약 조회, 운영자 예약 목록, 클래스·회차 관리)이 함께 쓰는 상태 배지 컴포넌트를 만든다. `src/components/status-badge.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 `src/components/status-badge.tsx`를 구현한다.
 
-### `components/status-badge.tsx` (+ `status-badge.test.tsx`)
+### `src/components/status-badge.tsx` (+ `status-badge.test.tsx`)
 
 ```tsx
 export function BookingStatusBadge({ status }: { status: BookingStatus }): JSX.Element; // 라벨은 BOOKING_STATUS_LABEL
@@ -31,9 +31,9 @@ export function Tag({ tone, children }: { tone: 'success' | 'neutral' | 'danger'
 npm run lint
 npm run build
 npm run test
-test -f components/status-badge.test.tsx
-! grep -nE '#[0-9a-fA-F]{3,8}\b' components/status-badge.tsx
-git diff --quiet HEAD -- components/ui/
+test -f src/components/status-badge.test.tsx
+! grep -nE '#[0-9a-fA-F]{3,8}\b' src/components/status-badge.tsx
+git diff --quiet HEAD -- src/components/ui/
 ```
 
 ## 검증 절차
@@ -50,8 +50,8 @@ git diff --quiet HEAD -- components/ui/
 
 ## 금지사항
 
-- 컴포넌트에 hex 색상을 직접 쓰지 마라. 이유: UI_GUIDE는 모든 값을 `:root` 변수로 참조하도록 정했다. 필요한 변수가 없으면 `app/globals.css`에 추가한다.
-- 상태 라벨 문자열을 컴포넌트에 다시 하드코딩하지 마라. 이유: `lib/types.ts`의 `BOOKING_STATUS_LABEL`이 단일 기준이다.
-- `components/ui/` 파일을 직접 수정하지 마라. 이유: shadcn 컴포넌트는 CLI로만 관리한다.
+- 컴포넌트에 hex 색상을 직접 쓰지 마라. 이유: UI_GUIDE는 모든 값을 `:root` 변수로 참조하도록 정했다. 필요한 변수가 없으면 `src/app/globals.css`에 추가한다.
+- 상태 라벨 문자열을 컴포넌트에 다시 하드코딩하지 마라. 이유: `src/lib/types.ts`의 `BOOKING_STATUS_LABEL`이 단일 기준이다.
+- `src/components/ui/` 파일을 직접 수정하지 마라. 이유: shadcn 컴포넌트는 CLI로만 관리한다.
 - 페이지·헤더·도메인 화면을 만들지 마라. 이유: step 2, 3, `6-admin-ui` step 0~2의 범위다.
 - 기존 테스트를 깨뜨리지 마라

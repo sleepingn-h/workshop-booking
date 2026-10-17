@@ -1,6 +1,6 @@
 # UI 디자인 가이드
 
-고객 화면(클래스 목록·상세·신청 완료·예약 조회)과 운영자 화면(로그인·예약 관리·클래스 관리·편집)이 함께 쓰는 시각 규칙이다. 값은 CSS 변수로 `app/globals.css`의 `:root`에 정의하고, Tailwind에서는 `bg-[var(--surface-card)]`처럼 변수로 참조한다. 화면에 hex 값을 직접 쓰지 않는다.
+고객 화면(클래스 목록·상세·신청 완료·예약 조회)과 운영자 화면(로그인·예약 관리·클래스 관리·편집)이 함께 쓰는 시각 규칙이다. 값은 CSS 변수로 `src/app/globals.css`의 `:root`에 정의하고, Tailwind에서는 `bg-[var(--surface-card)]`처럼 변수로 참조한다. 화면에 hex 값을 직접 쓰지 않는다.
 
 ## 디자인 원칙
 
@@ -99,7 +99,7 @@
 
 ## 컴포넌트
 
-shadcn/ui 컴포넌트를 CLI로 추가한 뒤 테마 변수와 래퍼(variant·className)로 아래 값에 맞춘다. `components/ui/` 파일은 직접 고치지 않는다.
+shadcn/ui 컴포넌트를 CLI로 추가한 뒤 테마 변수와 래퍼(variant·className)로 아래 값에 맞춘다. `src/components/ui/` 파일은 직접 고치지 않는다.
 
 ### 카드
 

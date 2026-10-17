@@ -13,7 +13,7 @@
 
 ## 작업
 
-`components/booking-form.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 `components/booking-form.tsx`를 구현한다. 페이지는 만들지 않는다(step 2).
+`src/components/booking-form.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 `src/components/booking-form.tsx`를 구현한다. 페이지는 만들지 않는다(step 2).
 
 ```tsx
 'use client';
@@ -52,11 +52,11 @@ export function BookingForm({ classId, sessions }: { classId: string; sessions: 
 npm run lint
 npm run build
 npm run test
-test -f components/booking-form.test.tsx
-grep -q "router.refresh" components/booking-form.tsx && grep -q "useMutation" components/booking-form.tsx
-! grep -nE "@/lib/db|@supabase|server-only" components/booking-form.tsx
-! grep -nE "#[0-9a-fA-F]{3,8}\b" components/booking-form.tsx
-git diff --quiet HEAD -- components/ui/
+test -f src/components/booking-form.test.tsx
+grep -q "router.refresh" src/components/booking-form.tsx && grep -q "useMutation" src/components/booking-form.tsx
+! grep -nE "@/lib/db|@supabase|server-only" src/components/booking-form.tsx
+! grep -nE "#[0-9a-fA-F]{3,8}\b" src/components/booking-form.tsx
+git diff --quiet HEAD -- src/components/ui/
 ```
 
 ## 검증 절차
@@ -76,6 +76,6 @@ git diff --quiet HEAD -- components/ui/
 - 회차·남은 자리를 `useQuery`나 별도 API로 다시 불러오지 마라. 이유: AGENTS.md — 신청 폼은 서버 상세에서 받아 `router.refresh()`로 갱신한다(클래스 조회 API는 없다).
 - 실패 시 입력값을 초기화하지 마라. 이유: PLAN 8절 — 실패하면 입력을 유지한다.
 - react-hook-form 등 폼 라이브러리를 추가하지 마라. 이유: 입력 4개에 의존성을 늘리지 않는다.
-- `components/ui/`를 직접 수정하지 마라. 이유: shadcn은 CLI로만 관리한다.
+- `src/components/ui/`를 직접 수정하지 마라. 이유: shadcn은 CLI로만 관리한다.
 - 페이지 파일을 만들지 마라. 이유: step 2의 범위다.
 - 기존 테스트를 깨뜨리지 마라

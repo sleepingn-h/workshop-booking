@@ -14,7 +14,7 @@
 
 ## 작업
 
-`components/admin-class-form.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 구현한다.
+`src/components/admin-class-form.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 구현한다.
 
 ```tsx
 'use client';
@@ -37,9 +37,9 @@ export function AdminClassForm({ classId }: { classId?: string }): JSX.Element;
 
 페이지:
 
-- `app/admin/classes/page.tsx` (`'use client'` 페이지 허용): `useQuery({ queryKey: ['admin', 'classes'] })`로 `GET /api/admin/classes`. 비공개 포함 목록(이름, 공개 Tag, 회차 수, 이미지 썸네일) → 각 행 `/admin/classes/[id]` 링크, primary "새 클래스" → `/admin/classes/new`. 로딩·빈 결과·실패 구분.
-- `app/admin/classes/new/page.tsx`: `<AdminClassForm />`.
-- `app/admin/classes/[id]/page.tsx`: `params`에서 id를 받아 `<AdminClassForm classId={id} />`.
+- `src/app/admin/classes/page.tsx` (`'use client'` 페이지 허용): `useQuery({ queryKey: ['admin', 'classes'] })`로 `GET /api/admin/classes`. 비공개 포함 목록(이름, 공개 Tag, 회차 수, 이미지 썸네일) → 각 행 `/admin/classes/[id]` 링크, primary "새 클래스" → `/admin/classes/new`. 로딩·빈 결과·실패 구분.
+- `src/app/admin/classes/new/page.tsx`: `<AdminClassForm />`.
+- `src/app/admin/classes/[id]/page.tsx`: `params`에서 id를 받아 `<AdminClassForm classId={id} />`.
 - 운영자 레이아웃의 noindex를 그대로 상속한다.
 
 테스트(`apiFetch` 모킹, `next/navigation` 모킹):
@@ -57,11 +57,11 @@ export function AdminClassForm({ classId }: { classId?: string }): JSX.Element;
 npm run lint
 npm run build
 npm run test
-test -f components/admin-class-form.test.tsx
-test -f app/admin/classes/page.tsx && test -f app/admin/classes/new/page.tsx && test -f "app/admin/classes/[id]/page.tsx"
-grep -q "FormData" components/admin-class-form.tsx && grep -q "validateImage" components/admin-class-form.tsx
-! grep -rnE "@/lib/db|@supabase|storage" components/admin-class-form.tsx
-git diff --quiet HEAD -- components/ui/
+test -f src/components/admin-class-form.test.tsx
+test -f src/app/admin/classes/page.tsx && test -f src/app/admin/classes/new/page.tsx && test -f "src/app/admin/classes/[id]/page.tsx"
+grep -q "FormData" src/components/admin-class-form.tsx && grep -q "validateImage" src/components/admin-class-form.tsx
+! grep -rnE "@/lib/db|@supabase|storage" src/components/admin-class-form.tsx
+git diff --quiet HEAD -- src/components/ui/
 ```
 
 ## 검증 절차

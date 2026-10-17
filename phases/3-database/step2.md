@@ -14,7 +14,7 @@
 
 ## 작업
 
-`lib/db.test.ts`에 테스트를 **먼저** 추가한 뒤 `lib/db.ts`에 아래 함수를 추가한다. step 1의 함수·테스트는 수정하지 않는다(공통 헬퍼 추출 정도의 리팩터링은 허용).
+`src/lib/db.test.ts`에 테스트를 **먼저** 추가한 뒤 `src/lib/db.ts`에 아래 함수를 추가한다. step 1의 함수·테스트는 수정하지 않는다(공통 헬퍼 추출 정도의 리팩터링은 허용).
 
 ```ts
 export async function listAdminClasses(): Promise<AdminClassSummary[]>;
@@ -45,7 +45,7 @@ export async function cancelSession(id: string): Promise<void>;                 
 - `cancelSession`: 조회 → `canCancelSession(status)` → `rpc('cancel_session')`.
 - RPC·Storage 에러는 step 1의 `toAppError`로 변환한다.
 
-### 테스트 (`lib/db.test.ts`에 추가)
+### 테스트 (`src/lib/db.test.ts`에 추가)
 
 - `R-57` createClass가 `is_published: true`를 보내지 않는다.
 - `R-52` updateClass의 `isPublished` 변경이 `set_class_published` RPC로 간다.
@@ -64,9 +64,9 @@ export async function cancelSession(id: string): Promise<void>;                 
 npm run lint
 npm run build
 npm run test
-for f in listAdminClasses getAdminClass createClass updateClass deleteClass uploadClassImage createSession updateSession deleteSession cancelSession; do grep -q "export async function $f" lib/db.ts || { echo "missing $f"; exit 1; }; done
-grep -q "set_class_published" lib/db.ts && grep -q "class-images" lib/db.ts
-for id in R-40 R-41 R-42 R-44 R-46 R-51 R-57; do grep -q "$id" lib/db.test.ts || { echo "missing $id"; exit 1; }; done
+for f in listAdminClasses getAdminClass createClass updateClass deleteClass uploadClassImage createSession updateSession deleteSession cancelSession; do grep -q "export async function $f" src/lib/db.ts || { echo "missing $f"; exit 1; }; done
+grep -q "set_class_published" src/lib/db.ts && grep -q "class-images" src/lib/db.ts
+for id in R-40 R-41 R-42 R-44 R-46 R-51 R-57; do grep -q "$id" src/lib/db.test.ts || { echo "missing $id"; exit 1; }; done
 ```
 
 ## 검증 절차

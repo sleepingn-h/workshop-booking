@@ -14,7 +14,7 @@
 
 ## 작업
 
-`components/admin-session-list.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 구현한다.
+`src/components/admin-session-list.test.tsx`를 **먼저 별도 패치로** 작성한 뒤 구현한다.
 
 ```tsx
 'use client';
@@ -33,7 +33,7 @@ export function AdminSessionList({ classId }: { classId: string }): JSX.Element;
 - 모든 변경 성공 시 `['admin']` 접두 쿼리를 무효화한다(예약 목록의 회차 상태도 갱신). 실패 시 서버 메시지 표시, 입력 유지, 요청 중 비활성.
 - 레이아웃: 데스크톱 표, 900px 이하 카드. 360px 가로 스크롤 없음.
 
-`app/admin/classes/[id]/page.tsx`에 `<AdminSessionList classId={id} />`를 클래스 폼 아래(섹션 제목 "회차")에 추가한다.
+`src/app/admin/classes/[id]/page.tsx`에 `<AdminSessionList classId={id} />`를 클래스 폼 아래(섹션 제목 "회차")에 추가한다.
 
 테스트:
 
@@ -50,12 +50,12 @@ export function AdminSessionList({ classId }: { classId: string }): JSX.Element;
 npm run lint
 npm run build
 npm run test
-test -f components/admin-session-list.test.tsx
-grep -q "AdminSessionList" "app/admin/classes/[id]/page.tsx"
-grep -q "kstInputToIso" components/admin-session-list.tsx
-for id in R-40 R-41 R-42 R-44 R-45 R-46; do grep -q "$id" components/admin-session-list.test.tsx || { echo "missing $id"; exit 1; }; done
+test -f src/components/admin-session-list.test.tsx
+grep -q "AdminSessionList" "src/app/admin/classes/[id]/page.tsx"
+grep -q "kstInputToIso" src/components/admin-session-list.tsx
+for id in R-40 R-41 R-42 R-44 R-45 R-46; do grep -q "$id" src/components/admin-session-list.test.tsx || { echo "missing $id"; exit 1; }; done
 ! grep -rqE "SUPABASE_SERVICE_ROLE_KEY|ADMIN_PASSWORD|ADMIN_SESSION_SECRET" .next/static
-git diff --quiet HEAD -- components/ui/
+git diff --quiet HEAD -- src/components/ui/
 ```
 
 ## 검증 절차

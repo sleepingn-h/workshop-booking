@@ -12,9 +12,9 @@
 
 ## 작업
 
-TDD로 진행한다. `lib/rules.test.ts`를 **먼저 별도 패치로** 작성하고(실패 확인), 그다음 `lib/rules.ts`를 작성한다. `lib/types.ts`는 TDD 가드 예외다.
+TDD로 진행한다. `src/lib/rules.test.ts`를 **먼저 별도 패치로** 작성하고(실패 확인), 그다음 `src/lib/rules.ts`를 작성한다. `src/lib/types.ts`는 TDD 가드 예외다.
 
-### 1. `lib/types.ts` (타입·상수만, 로직 없음)
+### 1. `src/lib/types.ts` (타입·상수만, 로직 없음)
 
 ```ts
 export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
@@ -70,7 +70,7 @@ export type AdminSession = { id: string; startsAt: string; capacity: number; sta
 export type AdminClassDetail = { id: string; title: string; description: string; imageUrl: string | null; isPublished: boolean; sessions: AdminSession[] };
 ```
 
-### 2. `lib/rules.ts` (순수 함수)
+### 2. `src/lib/rules.ts` (순수 함수)
 
 상수: `MIN_HEADCOUNT = 1`, `MAX_HEADCOUNT = 4`, `CONFIRMED_CANCEL_WINDOW_MS = 24h`, `IMAGE_MAX_BYTES = 4 * 1024 * 1024`, `ALLOWED_IMAGE_TYPES = ['image/jpeg','image/png','image/webp']`.
 
@@ -123,7 +123,7 @@ export function validateImage(file: { type: string; size: number }): RuleResult;
 - `validateImage`: 형식이 허용 목록 밖이거나 크기가 4MB 초과면 `VALIDATION_ERROR`(정확히 4MB 허용).
 - 모든 함수는 현재 시각을 인자로만 받는다.
 
-### 3. `lib/rules.test.ts`
+### 3. `src/lib/rules.test.ts`
 
 - 테스트 이름에 규칙 ID를 넣는다. 예: `it('R-31 확정 예약은 시작 정확히 24시간 전에 고객이 취소할 수 있다')`.
 - 시간 경계는 고정 `now`로 검증한다: 시작 1ms 전 / 시작 정각(신청·승인), 24시간 전 정각 / 24시간 전 + 1ms(확정 취소), 시작 1ms 전 / 정각(대기 취소).
@@ -135,17 +135,17 @@ export function validateImage(file: { type: string; size: number }): RuleResult;
 npm run lint
 npm run build
 npm run test
-test -f lib/types.ts && test -f lib/rules.ts && test -f lib/rules.test.ts
-! grep -nE "from ['\"](@supabase|next|@/lib/db|node:)" lib/rules.ts
-! grep -nE "new Date\(\)|Date\.now\(" lib/rules.ts
-for id in R-01 R-11 R-12 R-13 R-14 R-20 R-21 R-22 R-31 R-40 R-41 R-44 R-46 R-51; do grep -q "$id" lib/rules.test.ts || { echo "missing $id"; exit 1; }; done
+test -f src/lib/types.ts && test -f src/lib/rules.ts && test -f src/lib/rules.test.ts
+! grep -nE "from ['\"](@supabase|next|@/lib/db|node:)" src/lib/rules.ts
+! grep -nE "new Date\(\)|Date\.now\(" src/lib/rules.ts
+for id in R-01 R-11 R-12 R-13 R-14 R-20 R-21 R-22 R-31 R-40 R-41 R-44 R-46 R-51; do grep -q "$id" src/lib/rules.test.ts || { echo "missing $id"; exit 1; }; done
 ```
 
 ## 검증 절차
 
 1. 위 AC 커맨드를 실행한다.
 2. 아키텍처 체크리스트를 확인한다:
-   - `lib/rules.ts`가 DB·네트워크·현재 시각에 의존하지 않는가?
+   - `src/lib/rules.ts`가 DB·네트워크·현재 시각에 의존하지 않는가?
    - ADR 기술 스택을 벗어나지 않았는가?
    - AGENTS.md CRITICAL 규칙을 위반하지 않았는가?
 3. 결과에 따라 `phases/1-domain-rules/index.json`의 해당 step을 업데이트한다:
@@ -155,9 +155,9 @@ for id in R-01 R-11 R-12 R-13 R-14 R-20 R-21 R-22 R-31 R-40 R-41 R-44 R-46 R-51;
 
 ## 금지사항
 
-- `lib/rules.ts`에서 Supabase·Next·`fetch`·`process.env`·`new Date()`를 쓰지 마라. 이유: 규칙은 순수 함수여야 하며 시간 경계를 고정 `now`로 테스트한다(ADR-005).
+- `src/lib/rules.ts`에서 Supabase·Next·`fetch`·`process.env`·`new Date()`를 쓰지 마라. 이유: 규칙은 순수 함수여야 하며 시간 경계를 고정 `now`로 테스트한다(ADR-005).
 - 테스트 파일보다 구현 파일을 먼저 만들지 마라. 이유: TDD 가드가 차단하며 프로젝트 개발 규칙이다.
 - zod 등 검증 라이브러리를 추가하지 마라. 이유: ADR 기술 스택 밖의 의존성이며 입력 규칙이 단순하다.
 - 예약번호 생성 함수를 만들지 마라. 이유: 예약번호는 `3-database` step 0의 SQL 함수가 충돌 시 재발급하며 생성한다.
-- `lib/types.ts`에 로직(검증·계산)을 넣지 마라. 이유: 타입·상수 파일은 TDD 가드 예외이므로 로직이 들어가면 테스트 없이 구현하는 셈이 된다.
+- `src/lib/types.ts`에 로직(검증·계산)을 넣지 마라. 이유: 타입·상수 파일은 TDD 가드 예외이므로 로직이 들어가면 테스트 없이 구현하는 셈이 된다.
 - 기존 테스트를 깨뜨리지 마라

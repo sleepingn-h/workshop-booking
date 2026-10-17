@@ -33,7 +33,7 @@
 
 ### 3. 함수 (모두 `language plpgsql`, `set search_path = public`)
 
-에러 규약: 규칙 위반은 `raise exception '<ERROR_CODE>';` — 메시지가 정확히 `lib/types.ts`의 `ErrorCode` 문자열이어야 한다(예: `'SESSION_FULL'`). `lib/db.ts`가 이 메시지를 에러 코드로 변환한다.
+에러 규약: 규칙 위반은 `raise exception '<ERROR_CODE>';` — 메시지가 정확히 `src/lib/types.ts`의 `ErrorCode` 문자열이어야 한다(예: `'SESSION_FULL'`). `src/lib/db.ts`가 이 메시지를 에러 코드로 변환한다.
 
 시간 규약: 시간을 판정하는 함수는 `p_now timestamptz`를 받고 **`now()`·`current_timestamp`를 쓰지 않는다.**
 
@@ -89,7 +89,7 @@ grep -q "class-images" supabase/schema.sql && grep -q "BK-DEMO01" supabase/schem
 
 1. 위 AC 커맨드를 실행한다.
 2. 아키텍처 체크리스트를 확인한다:
-   - 함수의 판정 규칙이 `lib/rules.ts`와 같은가(특히 24시간 경계 `<=`, 시작 시각 경계 `>=`)?
+   - 함수의 판정 규칙이 `src/lib/rules.ts`와 같은가(특히 24시간 경계 `<=`, 시작 시각 경계 `>=`)?
    - `raise exception` 메시지가 모두 `ErrorCode` 문자열과 정확히 같은가?
    - AGENTS.md CRITICAL 규칙(행 잠금, `p_now`)을 위반하지 않았는가?
 3. 결과에 따라 `phases/3-database/index.json`의 해당 step을 업데이트한다:

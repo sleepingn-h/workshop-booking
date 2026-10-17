@@ -7,7 +7,7 @@
 - `/docs/ARCHITECTURE.md` ("운영자 인증", "얇은 Route Handler")
 - `/docs/ADR.md` (ADR-006)
 - `/docs/SPEC.md` 5절 어드민 API(로그인·로그아웃·예약 목록·상태 변경)
-- `/lib/auth.ts` (`2-admin-auth` step 0), `/lib/http.ts` 및 `app/api/bookings/**/route.ts`와 테스트 (step 1 — 같은 패턴을 따르라)
+- `/lib/auth.ts` (`2-admin-auth` step 0), `/lib/http.ts` 및 `src/app/api/bookings/**/route.ts`와 테스트 (step 1 — 같은 패턴을 따르라)
 - `/lib/db.ts` (`3-database` step 1 — `listAdminBookings`, `changeBookingStatus`)
 
 ## 작업
@@ -16,10 +16,10 @@
 
 | 파일 | 동작 |
 |---|---|
-| `app/api/admin/login/route.ts` | `POST { password }`: `checkPassword` 실패 → 401 `UNAUTHORIZED`(문구: 비밀번호가 올바르지 않습니다). 성공 → 200 `{ ok: true }` + `ADMIN_COOKIE`를 `createSessionToken(now)`, `sessionCookieOptions(now)`로 설정. 기존 쿠키 불필요. |
-| `app/api/admin/logout/route.ts` | `POST`: `requireAdmin` → 쿠키 삭제(같은 이름·path, 만료 과거) → 200 `{ ok: true }`. 미인증 401. |
-| `app/api/admin/bookings/route.ts` | `GET ?sessionId=&status=&q=`: `requireAdmin` → `listAdminBookings({ sessionId, status, q })` → 200 `AdminBookingList`. 빈 문자열 파라미터는 null로 취급. |
-| `app/api/admin/bookings/[id]/[action]/route.ts` | `POST`: `requireAdmin` → `action`이 `confirm`·`reject`·`cancel`이 아니면 404 `NOT_FOUND`(db 미호출) → `changeBookingStatus(id, action)` → 200 `{ ok: true }`. |
+| `src/app/api/admin/login/route.ts` | `POST { password }`: `checkPassword` 실패 → 401 `UNAUTHORIZED`(문구: 비밀번호가 올바르지 않습니다). 성공 → 200 `{ ok: true }` + `ADMIN_COOKIE`를 `createSessionToken(now)`, `sessionCookieOptions(now)`로 설정. 기존 쿠키 불필요. |
+| `src/app/api/admin/logout/route.ts` | `POST`: `requireAdmin` → 쿠키 삭제(같은 이름·path, 만료 과거) → 200 `{ ok: true }`. 미인증 401. |
+| `src/app/api/admin/bookings/route.ts` | `GET ?sessionId=&status=&q=`: `requireAdmin` → `listAdminBookings({ sessionId, status, q })` → 200 `AdminBookingList`. 빈 문자열 파라미터는 null로 취급. |
+| `src/app/api/admin/bookings/[id]/[action]/route.ts` | `POST`: `requireAdmin` → `action`이 `confirm`·`reject`·`cancel`이 아니면 404 `NOT_FOUND`(db 미호출) → `changeBookingStatus(id, action)` → 200 `{ ok: true }`. |
 
 핵심 규칙:
 
@@ -41,9 +41,9 @@
 npm run lint
 npm run build
 npm run test
-for f in login logout bookings "bookings/[id]/[action]"; do test -f "app/api/admin/$f/route.test.ts" || { echo "missing test $f"; exit 1; }; done
-grep -q "requireAdmin" app/api/admin/bookings/route.ts && grep -q "requireAdmin" "app/api/admin/bookings/[id]/[action]/route.ts"
-! grep -rn "PATCH" app/api/admin/bookings
+for f in login logout bookings "bookings/[id]/[action]"; do test -f "src/app/api/admin/$f/route.test.ts" || { echo "missing test $f"; exit 1; }; done
+grep -q "requireAdmin" src/app/api/admin/bookings/route.ts && grep -q "requireAdmin" "src/app/api/admin/bookings/[id]/[action]/route.ts"
+! grep -rn "PATCH" src/app/api/admin/bookings
 ```
 
 ## 검증 절차

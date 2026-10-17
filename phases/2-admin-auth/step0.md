@@ -11,9 +11,9 @@
 
 ## 작업
 
-`lib/auth.test.ts`를 **먼저 별도 패치로** 작성한 뒤 `lib/auth.ts`를 구현한다.
+`src/lib/auth.test.ts`를 **먼저 별도 패치로** 작성한 뒤 `src/lib/auth.ts`를 구현한다.
 
-### `lib/auth.ts`
+### `src/lib/auth.ts`
 
 ```ts
 import 'server-only';
@@ -39,7 +39,7 @@ export function sessionCookieOptions(now: Date): {
 - 환경 변수는 모듈 최상단이 아니라 **함수 호출 시** `process.env`에서 읽는다(테스트에서 `vi.stubEnv` 가능, 빌드 시 환경 변수 불필요).
 - 현재 시각은 인자로만 받는다.
 
-### `lib/auth.test.ts`
+### `src/lib/auth.test.ts`
 
 - 테스트 이름은 동작을 쓴다(규칙 ID 없음). 예: `it('만료 시각이 지난 토큰은 거부한다')`.
 - 사례: 발급 직후 유효, 만료 정각·이후 거부, 서명 한 글자 변조 거부, 만료 시각 변조 거부, 다른 secret으로 서명한 토큰 거부, 빈 값·`undefined`·점 없는 문자열 거부, 비밀번호 일치·불일치·길이 다름·비문자열, 환경 변수 미설정 시 실패, `isAdminRequest`가 여러 쿠키가 섞인 Cookie 헤더에서 올바른 값을 찾음, `sessionCookieOptions`의 `expires`가 `now + 12h`.
@@ -50,8 +50,8 @@ export function sessionCookieOptions(now: Date): {
 npm run lint
 npm run build
 npm run test
-grep -q "server-only" lib/auth.ts && grep -q "timingSafeEqual" lib/auth.ts && grep -q "node:crypto" lib/auth.ts
-! grep -nE "console\.(log|info|debug)" lib/auth.ts
+grep -q "server-only" src/lib/auth.ts && grep -q "timingSafeEqual" src/lib/auth.ts && grep -q "node:crypto" src/lib/auth.ts
+! grep -nE "console\.(log|info|debug)" src/lib/auth.ts
 ```
 
 ## 검증 절차
@@ -71,5 +71,5 @@ grep -q "server-only" lib/auth.ts && grep -q "timingSafeEqual" lib/auth.ts && gr
 - jose·jsonwebtoken·next-auth 등 인증 라이브러리를 추가하지 마라. 이유: ADR-006은 `node:crypto` HMAC 서명 쿠키로 결정했다.
 - 비밀번호·secret·토큰을 `console`에 출력하거나 에러 메시지에 넣지 마라. 이유: AGENTS.md CRITICAL — 비밀값을 로그에 노출하지 않는다.
 - 환경 변수를 모듈 로드 시점에 읽거나 없을 때 throw하지 마라. 이유: `npm run build`가 환경 변수 없이 통과해야 한다.
-- `proxy.ts`나 Route Handler를 만들지 마라. 이유: step 1, `4-api` step 2의 범위다.
+- `src/proxy.ts`나 Route Handler를 만들지 마라. 이유: step 1, `4-api` step 2의 범위다.
 - 기존 테스트를 깨뜨리지 마라
