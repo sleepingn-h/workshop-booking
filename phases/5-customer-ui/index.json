@@ -7,7 +7,8 @@
       "name": "status-badge",
       "status": "completed",
       "summary": "BookingStatusBadge·Tag 구현: BOOKING_STATUS_LABEL과 --badge-{상태}-{bg|text}, --color-green·--text-on-green·--status-neutral(-bg)·--status-danger(-bg)·--radius-card 재사용, 표시 테스트 8개·전체 642개 및 AC 통과",
-      "started_at": "2026-10-17T16:45:09+0900"
+      "started_at": "2026-10-17T16:45:09+0900",
+      "completed_at": "2026-10-17T16:47:19+0900"
     },
     {
       "step": 1,
