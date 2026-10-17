@@ -13,7 +13,9 @@
     {
       "step": 1,
       "name": "api-public",
-      "status": "pending"
+      "status": "completed",
+      "summary": "http.ts의 jsonOk·errorResponse·toErrorResponse·readJson·requireAdmin과 공개 예약 신청·조회·취소 POST API 구현, 신규 테스트 60개·전체 513개 및 AC·아키텍처 점검 통과",
+      "started_at": "2026-10-17T16:33:11+0900"
     },
     {
       "step": 2,
