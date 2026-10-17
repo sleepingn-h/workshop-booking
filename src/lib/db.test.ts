@@ -7,16 +7,24 @@ type Reply = {
   data: unknown;
   error: { message?: string } | null;
   beforeRead?: () => void;
+  count?: number | null;
 };
 
 // 쿼리를 실행하지 않고 테이블별 응답 큐와 체인 호출만 기록한다.
 function mockSupabase() {
   const replies = new Map<string, Reply[]>();
   const queries: { table: string; chain: ReturnType<typeof queryChain> }[] = [];
+  const bucket = {
+    upload: vi.fn().mockResolvedValue({ data: null, error: null }),
+    remove: vi.fn().mockResolvedValue({ data: null, error: null }),
+    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: "https://images.example.test/new.jpg" } }),
+  };
 
   function queryChain(table: string) {
     return {
       select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
@@ -40,7 +48,14 @@ function mockSupabase() {
       return chain;
     }),
     rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    storage: { from: vi.fn().mockReturnValue(bucket) },
+    bucket,
     queries,
+    queueCount(table: string, count: number) {
+      const queue = replies.get(table) ?? [];
+      queue.push({ data: null, error: null, count });
+      replies.set(table, queue);
+    },
     queue(table: string, data: unknown, error: Reply["error"] = null, beforeRead?: () => void) {
       const queue = replies.get(table) ?? [];
       queue.push({ data, error, beforeRead });
@@ -495,5 +510,368 @@ describe("운영자 예약 목록과 상태 변경", () => {
     client.queue("sessions", session);
     client.rpc.mockResolvedValue({ data: null, error: { message: "INVALID_TRANSITION" } });
     await expect(db.changeBookingStatus(bookingId, "confirm")).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+  });
+});
+
+const sessionInput = { startsAt: session.starts_at, capacity: 6 };
+const oldImagePath = `classes/${classId}/old.jpg`;
+
+function queueSessionStats(patch: Partial<typeof stats> = {}) {
+  client.queue("sessions", session);
+  client.queue("session_stats", { ...stats, ...patch });
+}
+
+describe("운영자 카탈로그 입력과 대상 확인", () => {
+  const idActions = [
+    { name: "getAdminClass", table: "classes", call: (id: string) => db.getAdminClass(id) },
+    { name: "updateClass", table: "classes", call: (id: string) => db.updateClass(id, { title: "수정" }) },
+    { name: "deleteClass", table: "classes", call: (id: string) => db.deleteClass(id) },
+    { name: "uploadClassImage", table: "classes", call: (id: string) => db.uploadClassImage(id, new File(["image"], "test.jpg", { type: "image/jpeg" })) },
+    { name: "updateSession", table: "sessions", call: (id: string) => db.updateSession(id, { capacity: 4 }) },
+    { name: "deleteSession", table: "sessions", call: (id: string) => db.deleteSession(id) },
+    { name: "cancelSession", table: "sessions", call: (id: string) => db.cancelSession(id) },
+  ];
+
+  it.each([
+    ...idActions,
+    { name: "createSession", call: (id: string) => db.createSession(id, sessionInput) },
+  ])("R-46 R-52 $name: 잘못된 UUID는 DB·Storage 호출 없이 NOT_FOUND이다", async ({ call }) => {
+    await expect(call("not-a-uuid")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(client.storage.from).not.toHaveBeenCalled();
+  });
+
+  it.each(idActions)("R-46 R-52 $name: 대상이 없으면 NOT_FOUND이다", async ({ call, table }) => {
+    client.queue(table, null);
+    await expect(call(table === "classes" ? classId : sessionId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(client.storage.from).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "createClass", call: () => db.createClass({ title: " " }) },
+    { name: "updateClass", call: () => db.updateClass(classId, { isPublished: "true" }) },
+    { name: "updateSession", call: () => db.updateSession(sessionId, { capacity: 0 }) },
+    { name: "updateSession classId", call: () => db.updateSession(sessionId, { classId }) },
+  ])("R-46 R-57 $name: 잘못된 입력은 DB 호출 전에 필드 오류로 거부한다", async ({ call }) => {
+    await expect(call()).rejects.toMatchObject({ code: "VALIDATION_ERROR", fieldErrors: expect.any(Object) });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("운영자 클래스 조회와 저장", () => {
+  it("R-52 비공개를 포함해 생성 시각 내림차순으로 조회하고 모든 회차 수를 반환한다", async () => {
+    const privateClass = { ...workshop, id: "10000000-0000-4000-8000-000000000002", is_published: false, image_url: null };
+    client.queue("classes", [
+      { ...privateClass, sessions: [{ count: 0 }] },
+      { ...workshop, sessions: [{ count: 3 }] },
+    ]);
+
+    await expect(db.listAdminClasses()).resolves.toEqual([
+      { id: privateClass.id, title: privateClass.title, isPublished: false, imageUrl: null, sessionCount: 0 },
+      { id: classId, title: workshop.title, isPublished: true, imageUrl: workshop.image_url, sessionCount: 3 },
+    ]);
+    expect(client.queries[0].chain.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(client.queries[0].chain.eq).not.toHaveBeenCalled();
+    expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("sessions(count)"));
+  });
+
+  it("R-52 클래스가 없으면 빈 목록이다", async () => {
+    client.queue("classes", []);
+    await expect(db.listAdminClasses()).resolves.toEqual([]);
+    expect(client.from).toHaveBeenCalledTimes(1);
+  });
+
+  it("R-01 R-41 R-52 시작·취소 회차도 시작 순서로 표시하고 점유 인원과 전체 이력 수를 구분한다", async () => {
+    const pastSession = { ...session, id: "20000000-0000-4000-8000-000000000002", starts_at: "2026-10-16T03:00:00Z", status: "cancelled" };
+    client.queue("classes", { ...workshop, is_published: false });
+    client.queue("sessions", [session, pastSession]);
+    client.queue("session_stats", [stats, { session_id: pastSession.id, occupied: 0, booking_count: 2 }]);
+
+    await expect(db.getAdminClass(classId)).resolves.toEqual({
+      id: classId, title: workshop.title, description: workshop.description, imageUrl: workshop.image_url, isPublished: false,
+      sessions: [
+        { id: pastSession.id, startsAt: pastSession.starts_at, capacity: 6, status: "cancelled", occupied: 0, bookingCount: 2 },
+        { id: sessionId, startsAt: session.starts_at, capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1 },
+      ],
+    });
+    expect(client.queries[1].chain.eq).toHaveBeenCalledWith("class_id", classId);
+    expect(client.queries[1].chain.order).toHaveBeenCalledWith("starts_at", { ascending: true });
+  });
+
+  it("R-50 회차가 없는 클래스는 빈 회차 목록을 반환한다", async () => {
+    client.queue("classes", workshop);
+    client.queue("sessions", []);
+    await expect(db.getAdminClass(classId)).resolves.toMatchObject({ sessions: [] });
+    expect(client.from.mock.calls).toEqual([["classes"], ["sessions"]]);
+  });
+
+  it("R-57 입력의 공개 여부를 무시하고 비공개 기본값으로 클래스를 만든다", async () => {
+    client.queue("classes", { id: classId });
+
+    await expect(db.createClass({ title: " 도자기 컵 ", description: " 안내 ", isPublished: true, is_published: true })).resolves.toEqual({ id: classId });
+    expect(client.queries[0].chain.insert).toHaveBeenCalledExactlyOnceWith({ title: "도자기 컵", description: "안내" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-58 이름·설명은 일반 update로 저장하고 검증된 필드만 보낸다", async () => {
+    client.queue("classes", { id: classId });
+    await expect(db.updateClass(classId, { title: " 새 이름 ", description: " 새 설명 ", image_path: "invalid" })).resolves.toBeUndefined();
+    expect(client.queries[0].chain.update).toHaveBeenCalledExactlyOnceWith({ title: "새 이름", description: "새 설명" });
+    expect(client.queries[0].chain.eq).toHaveBeenCalledWith("id", classId);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("R-52 공개 여부 %s는 일반 update 없이 set_class_published RPC로 저장한다", async (isPublished) => {
+    await expect(db.updateClass(classId, { isPublished })).resolves.toBeUndefined();
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: isPublished });
+    expect(client.from).not.toHaveBeenCalled();
+  });
+
+  it("R-52 R-58 함께 수정할 때 일반 update에서 공개 여부를 제외하고 RPC로 보낸다", async () => {
+    client.queue("classes", { id: classId });
+    await db.updateClass(classId, { title: "새 이름", isPublished: true });
+    expect(client.queries[0].chain.update).toHaveBeenCalledExactlyOnceWith({ title: "새 이름" });
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: true });
+  });
+
+  it("R-51 회차가 있으면 삭제·비공개 RPC를 호출하지 않는다", async () => {
+    client.queue("classes", workshop);
+    client.queueCount("sessions", 1);
+    await expect(db.deleteClass(classId)).rejects.toMatchObject({ code: "CLASS_HAS_SESSIONS" });
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(client.storage.from).not.toHaveBeenCalled();
+    expect(client.queries[1].chain.eq).toHaveBeenCalledWith("class_id", classId);
+  });
+
+  it.each([null, oldImagePath])("R-50 클래스 삭제 후 RPC가 반환한 파일 경로 %s만 삭제한다", async (path) => {
+    client.queue("classes", workshop);
+    client.queueCount("sessions", 0);
+    client.rpc.mockResolvedValue({ data: path, error: null });
+    await expect(db.deleteClass(classId)).resolves.toBeUndefined();
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("delete_class", { p_class_id: classId });
+    if (path) {
+      expect(client.storage.from).toHaveBeenCalledWith("class-images");
+      expect(client.bucket.remove).toHaveBeenCalledExactlyOnceWith([path]);
+    } else {
+      expect(client.storage.from).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each(["error", "throw"])("R-50 클래스 삭제 후 Storage 삭제 %s는 되돌리지 않고 경로만 로그에 남긴다", async (failure) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    client.queue("classes", workshop);
+    client.queueCount("sessions", 0);
+    client.rpc.mockResolvedValue({ data: oldImagePath, error: null });
+    if (failure === "error") client.bucket.remove.mockResolvedValue({ data: null, error: { message: "private storage failure" } });
+    else client.bucket.remove.mockRejectedValue(new Error("private storage failure"));
+
+    await expect(db.deleteClass(classId)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledExactlyOnceWith(oldImagePath);
+  });
+
+  it("R-51 잠금 후 회차가 발견되면 RPC 오류를 반환하고 Storage는 삭제하지 않는다", async () => {
+    client.queue("classes", workshop);
+    client.queueCount("sessions", 0);
+    client.rpc.mockResolvedValue({ data: null, error: { message: "CLASS_HAS_SESSIONS" } });
+    await expect(db.deleteClass(classId)).rejects.toMatchObject({ code: "CLASS_HAS_SESSIONS" });
+    expect(client.bucket.remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("서버 클래스 이미지 업로드", () => {
+  it.each([
+    { type: "image/gif", size: 10 },
+    { type: "image/jpeg", size: 4 * 1024 * 1024 + 1 },
+  ])("이미지 형식·크기 %j가 잘못되면 DB·Storage를 호출하지 않는다", async ({ type, size }) => {
+    const file = new File([new Uint8Array(size)], "image", { type });
+    await expect(db.uploadClassImage(classId, file)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.bucket.upload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { type: "image/jpeg", ext: "jpg" },
+    { type: "image/png", ext: "png" },
+    { type: "image/webp", ext: "webp" },
+  ])("R-58 $type: 파일명 대신 MIME과 UUID로 경로를 만들고 샘플 파일은 삭제하지 않는다", async ({ type, ext }) => {
+    const file = new File(["image"], "../../untrusted.gif", { type });
+    client.queue("classes", { image_path: null });
+    client.queue("classes", { id: classId });
+
+    await expect(db.uploadClassImage(classId, file)).resolves.toEqual({ imageUrl: "https://images.example.test/new.jpg" });
+    const path = client.bucket.upload.mock.calls[0][0];
+    expect(path).toMatch(new RegExp(`^classes/${classId}/[0-9a-f-]{36}\\.${ext}$`));
+    expect(client.storage.from).toHaveBeenCalledWith("class-images");
+    expect(client.bucket.upload).toHaveBeenCalledExactlyOnceWith(path, file, { contentType: type });
+    expect(client.bucket.getPublicUrl).toHaveBeenCalledExactlyOnceWith(path);
+    expect(client.queries[1].chain.update).toHaveBeenCalledExactlyOnceWith({ image_url: "https://images.example.test/new.jpg", image_path: path });
+    expect(client.queries[1].chain.eq).toHaveBeenCalledWith("id", classId);
+    expect(client.bucket.remove).not.toHaveBeenCalled();
+  });
+
+  it("R-58 교체한 URL·경로 저장이 성공한 뒤 기존 Storage 파일을 삭제한다", async () => {
+    client.queue("classes", { image_path: oldImagePath });
+    client.queue("classes", { id: classId }, null, () => expect(client.bucket.remove).not.toHaveBeenCalled());
+    await db.uploadClassImage(classId, new File(["image"], "new.jpg", { type: "image/jpeg" }));
+    expect(client.bucket.remove).toHaveBeenCalledExactlyOnceWith([oldImagePath]);
+  });
+
+  it.each([
+    { message: "VALIDATION_ERROR", code: "VALIDATION_ERROR" },
+    { message: "private storage failure", code: "INTERNAL_ERROR" },
+  ])("Storage upload 오류 $message → $code: 에러를 변환하고 기존 파일은 유지한다", async ({ message, code }) => {
+    client.queue("classes", { image_path: oldImagePath });
+    client.bucket.upload.mockResolvedValue({ data: null, error: { message } });
+    await expect(db.uploadClassImage(classId, new File(["image"], "new.jpg", { type: "image/jpeg" }))).rejects.toMatchObject({ code });
+    expect(client.from).toHaveBeenCalledTimes(1);
+    expect(client.bucket.getPublicUrl).not.toHaveBeenCalled();
+    expect(client.bucket.remove).not.toHaveBeenCalled();
+  });
+
+  it("R-58 교체 후 기존 파일 삭제 오류도 AppError로 변환한다", async () => {
+    client.queue("classes", { image_path: oldImagePath });
+    client.queue("classes", { id: classId });
+    client.bucket.remove.mockResolvedValue({ data: null, error: { message: "private cleanup failure" } });
+    await expect(db.uploadClassImage(classId, new File(["image"], "new.jpg", { type: "image/jpeg" }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+  });
+
+  it("R-58 URL 저장 중 클래스가 사라지면 NOT_FOUND이고 기존 파일은 삭제하지 않는다", async () => {
+    client.queue("classes", { image_path: oldImagePath });
+    client.queue("classes", null);
+    await expect(db.uploadClassImage(classId, new File(["image"], "new.jpg", { type: "image/jpeg" }))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(client.bucket.remove).not.toHaveBeenCalledWith([oldImagePath]);
+    expect(client.bucket.remove).toHaveBeenCalledExactlyOnceWith([client.bucket.upload.mock.calls[0][0]]);
+  });
+
+  it("R-58 URL 저장 실패는 원문 없이 반환하고 새 업로드만 정리한다", async () => {
+    client.queue("classes", { image_path: oldImagePath });
+    client.queue("classes", null, { message: "private update failure" });
+    await expect(db.uploadClassImage(classId, new File(["image"], "new.jpg", { type: "image/jpeg" }))).rejects.toMatchObject({
+      code: "INTERNAL_ERROR", message: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    });
+    expect(client.bucket.remove).toHaveBeenCalledExactlyOnceWith([client.bucket.upload.mock.calls[0][0]]);
+  });
+});
+
+describe("운영자 회차 관리", () => {
+  it.each([
+    { startsAt: "2026-10-16T03:00:00Z", capacity: 4 },
+    { startsAt: now.toISOString(), capacity: 4 },
+    { startsAt: session.starts_at, capacity: 0 },
+  ])("R-46 과거·시작 정각·잘못된 정원 %j는 DB 호출 전에 거부한다", async (input) => {
+    await expect(db.createSession(classId, input)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-46 정상 생성은 같은 요청 시각을 입력 규칙과 RPC에 넘기고 id를 반환한다", async () => {
+    const validate = vi.spyOn(rules, "validateSessionInput");
+    client.rpc.mockImplementationOnce(async () => {
+      vi.setSystemTime("2026-10-22T00:00:00Z");
+      return { data: sessionId, error: null };
+    });
+    await expect(db.createSession(classId, sessionInput)).resolves.toEqual({ id: sessionId });
+    expect(validate).toHaveBeenCalledExactlyOnceWith(sessionInput, now);
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("create_session", { p_class_id: classId, p_starts_at: session.starts_at, p_capacity: 6, p_now: now.toISOString() });
+  });
+
+  it("R-40 점유 인원보다 작은 정원은 RPC를 호출하지 않는다", async () => {
+    queueSessionStats();
+    await expect(db.updateSession(sessionId, { capacity: 1 })).rejects.toMatchObject({ code: "CAPACITY_BELOW_OCCUPIED" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-40 점유 인원과 같은 정원은 행 잠금을 사용하는 RPC로 변경한다", async () => {
+    queueSessionStats();
+    await expect(db.updateSession(sessionId, { capacity: 2, classId: "다른 클래스" })).resolves.toBeUndefined();
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("update_session", { p_session_id: sessionId, p_starts_at: null, p_capacity: 2, p_now: now.toISOString() });
+  });
+
+  it("R-44 거절·취소만 있어 점유 인원이 0이어도 이력이 있으면 시각 변경을 거부한다", async () => {
+    queueSessionStats({ occupied: 0, booking_count: 2 });
+    await expect(db.updateSession(sessionId, { startsAt: "2026-10-22T03:00:00Z" })).rejects.toMatchObject({ code: "SESSION_HAS_BOOKINGS" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-44 표현이 달라도 동일한 시각이면 이력 검사 없이 정원을 수정한다", async () => {
+    const change = vi.spyOn(rules, "canChangeStartsAt");
+    queueSessionStats();
+    await db.updateSession(sessionId, { startsAt: "2026-10-21T12:00:00.123+09:00", capacity: 4 });
+    expect(change).not.toHaveBeenCalled();
+    expect(client.rpc).toHaveBeenCalledWith("update_session", { p_session_id: sessionId, p_starts_at: session.starts_at, p_capacity: 4, p_now: now.toISOString() });
+  });
+
+  it("R-44 조회 중 시각이 바뀌어도 입력 검증·시각 변경 규칙·RPC는 같은 진입 시각을 쓴다", async () => {
+    const validate = vi.spyOn(rules, "validateSessionPatch");
+    const change = vi.spyOn(rules, "canChangeStartsAt");
+    client.queue("sessions", session, null, () => vi.setSystemTime("2026-10-25T00:00:00Z"));
+    client.queue("session_stats", { ...stats, occupied: 0, booking_count: 0 });
+    const patch = { startsAt: "2026-10-22T03:00:00Z" };
+    await expect(db.updateSession(sessionId, patch)).resolves.toBeUndefined();
+    expect(validate).toHaveBeenCalledExactlyOnceWith(patch, now);
+    expect(change).toHaveBeenCalledExactlyOnceWith(0, new Date(patch.startsAt), now);
+    expect(change.mock.calls[0][2]).toBe(validate.mock.calls[0][1]);
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("update_session", { p_session_id: sessionId, p_starts_at: "2026-10-22T03:00:00.000Z", p_capacity: null, p_now: now.toISOString() });
+  });
+
+  it("R-41 점유가 없어도 이력이 있으면 회차를 삭제할 수 없다", async () => {
+    queueSessionStats({ occupied: 0, booking_count: 2 });
+    await expect(db.deleteSession(sessionId)).rejects.toMatchObject({ code: "SESSION_HAS_BOOKINGS" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-43 이력 없는 회차 삭제는 delete_session RPC로 처리한다", async () => {
+    queueSessionStats({ occupied: 0, booking_count: 0 });
+    await expect(db.deleteSession(sessionId)).resolves.toBeUndefined();
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("delete_session", { p_session_id: sessionId });
+  });
+
+  it("R-45 이미 취소된 회차는 다시 취소할 수 없다", async () => {
+    client.queue("sessions", { ...session, status: "cancelled" });
+    await expect(db.cancelSession(sessionId)).rejects.toMatchObject({ code: "SESSION_CANCELLED" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-42 정상 회차 취소는 활성 예약도 함께 취소하는 cancel_session RPC로 처리한다", async () => {
+    client.queue("sessions", session);
+    await expect(db.cancelSession(sessionId)).resolves.toBeUndefined();
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("cancel_session", { p_session_id: sessionId });
+  });
+
+  it.each(["updateSession", "deleteSession"] as const)("R-41 R-44 %s에서 통계 조회가 사라지면 변경하지 않는다", async (action) => {
+    client.queue("sessions", session);
+    client.queue("session_stats", null);
+    const result = action === "updateSession" ? db.updateSession(sessionId, { capacity: 4 }) : db.deleteSession(sessionId);
+    await expect(result).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { action: "updateSession", code: "CAPACITY_BELOW_OCCUPIED", rule: "R-40" },
+    { action: "deleteSession", code: "SESSION_HAS_BOOKINGS", rule: "R-41" },
+    { action: "cancelSession", code: "SESSION_CANCELLED", rule: "R-45" },
+    { action: "createSession", code: "NOT_FOUND", rule: "R-46" },
+    { action: "updateClass", code: "NOT_FOUND", rule: "R-52" },
+  ])("$rule $action: 저장 시점 RPC 오류 $code 반환", async ({ action, code }) => {
+    client.rpc.mockResolvedValue({ data: null, error: { message: code } });
+    let result: Promise<unknown>;
+    if (action === "updateSession") {
+      queueSessionStats();
+      result = db.updateSession(sessionId, { capacity: 4 });
+    } else if (action === "deleteSession") {
+      queueSessionStats({ occupied: 0, booking_count: 0 });
+      result = db.deleteSession(sessionId);
+    } else if (action === "cancelSession") {
+      client.queue("sessions", session);
+      result = db.cancelSession(sessionId);
+    } else if (action === "createSession") {
+      result = db.createSession(classId, sessionInput);
+    } else {
+      result = db.updateClass(classId, { isPublished: true });
+    }
+    await expect(result).rejects.toMatchObject({ code });
   });
 });

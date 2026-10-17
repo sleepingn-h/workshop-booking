@@ -1,21 +1,35 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
   canApply,
+  canCancelSession,
+  canChangeCapacity,
+  canChangeStartsAt,
+  canDeleteClass,
+  canDeleteSession,
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
   remainingSeats,
   validateBookingInput,
+  validateClassInput,
+  validateClassPatch,
+  validateImage,
   validateLookupInput,
+  validateSessionInput,
+  validateSessionPatch,
 } from "./rules";
 import {
   AppError,
   BOOKING_STATUS_LABEL,
   ERROR_CODES,
   type AdminBookingList,
+  type AdminClassDetail,
+  type AdminClassSummary,
   type BookingAction,
   type BookingLookupResult,
   type BookingStatus,
@@ -51,6 +65,8 @@ type BookingRow = {
 };
 
 type SessionStatsRow = { session_id: string; occupied: number };
+type AdminSessionStatsRow = SessionStatsRow & { booking_count: number };
+type AdminClassRow = ClassRow & { sessions: { count: number }[] };
 type AdminBookingRow = BookingRow & {
   customer_name: string;
   class_title: string;
@@ -384,4 +400,277 @@ export async function changeBookingStatus(id: string, action: BookingAction): Pr
     p_now: now.toISOString(),
   });
   if (rpcError) throw toAppError(rpcError);
+}
+
+async function readSessionStats(id: string): Promise<AdminSessionStatsRow> {
+  const { data, error } = await getClient()
+    .from("session_stats")
+    .select("session_id,occupied,booking_count")
+    .eq("session_id", id)
+    .returns<AdminSessionStatsRow[]>()
+    .maybeSingle();
+  if (error) throw toAppError(error);
+  if (!data) throw new AppError("NOT_FOUND");
+  return data;
+}
+
+async function removeImageBestEffort(path: string): Promise<void> {
+  try {
+    const { error } = await getClient().storage.from("class-images").remove([path]);
+    if (error) throw toAppError(error);
+  } catch {
+    // DB에서 완료된 작업을 되돌리지 않고, 재정리에 필요한 경로만 기록한다.
+    console.error(path);
+  }
+}
+
+export async function listAdminClasses(): Promise<AdminClassSummary[]> {
+  const now = new Date();
+  void now;
+  const { data, error } = await getClient()
+    .from("classes")
+    .select(`${CLASS_COLUMNS},sessions(count)`)
+    .order("created_at", { ascending: false })
+    .returns<AdminClassRow[]>();
+  if (error) throw toAppError(error);
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    isPublished: row.is_published,
+    imageUrl: row.image_url,
+    sessionCount: row.sessions[0]?.count ?? 0,
+  }));
+}
+
+export async function getAdminClass(id: string): Promise<AdminClassDetail> {
+  const now = new Date();
+  void now;
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const workshop = await readClass(id);
+  if (!workshop) throw new AppError("NOT_FOUND");
+
+  const { data: sessions, error } = await getClient()
+    .from("sessions")
+    .select(SESSION_COLUMNS)
+    .eq("class_id", id)
+    .order("starts_at", { ascending: true })
+    .returns<SessionRow[]>();
+  if (error) throw toAppError(error);
+
+  const statsBySession = new Map<string, AdminSessionStatsRow>();
+  if (sessions?.length) {
+    const { data: stats, error: statsError } = await getClient()
+      .from("session_stats")
+      .select("session_id,occupied,booking_count")
+      .in("session_id", sessions.map((row) => row.id))
+      .returns<AdminSessionStatsRow[]>();
+    if (statsError) throw toAppError(statsError);
+    for (const row of stats ?? []) statsBySession.set(row.session_id, row);
+  }
+
+  return {
+    id: workshop.id,
+    title: workshop.title,
+    description: workshop.description,
+    imageUrl: workshop.image_url,
+    isPublished: workshop.is_published,
+    sessions: (sessions ?? [])
+      .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
+      .map((row) => ({
+        id: row.id,
+        startsAt: row.starts_at,
+        capacity: row.capacity,
+        status: row.status,
+        occupied: statsBySession.get(row.id)?.occupied ?? 0,
+        bookingCount: statsBySession.get(row.id)?.booking_count ?? 0,
+      })),
+  };
+}
+
+export async function createClass(input: unknown): Promise<{ id: string }> {
+  const now = new Date();
+  void now;
+  const validated = validateClassInput(input);
+  if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
+
+  const { data, error } = await getClient()
+    .from("classes")
+    .insert(validated.value)
+    .select("id")
+    .returns<{ id: string }[]>()
+    .maybeSingle();
+  if (error) throw toAppError(error);
+  if (!data) throw new AppError("INTERNAL_ERROR");
+  return { id: data.id };
+}
+
+export async function updateClass(id: string, input: unknown): Promise<void> {
+  const now = new Date();
+  void now;
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const validated = validateClassPatch(input);
+  if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
+  const { title, description, isPublished } = validated.value;
+
+  if (title !== undefined || description !== undefined) {
+    const fields: { title?: string; description?: string } = {};
+    if (title !== undefined) fields.title = title;
+    if (description !== undefined) fields.description = description;
+    const { data, error } = await getClient()
+      .from("classes")
+      .update(fields)
+      .eq("id", id)
+      .select("id")
+      .returns<{ id: string }[]>()
+      .maybeSingle();
+    if (error) throw toAppError(error);
+    if (!data) throw new AppError("NOT_FOUND");
+  }
+
+  if (isPublished !== undefined) {
+    const { error } = await getClient().rpc("set_class_published", {
+      p_class_id: id,
+      p_is_published: isPublished,
+    });
+    if (error) throw toAppError(error);
+  }
+}
+
+export async function deleteClass(id: string): Promise<void> {
+  const now = new Date();
+  void now;
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const workshop = await readClass(id);
+  if (!workshop) throw new AppError("NOT_FOUND");
+
+  const { count, error } = await getClient()
+    .from("sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("class_id", id);
+  if (error) throw toAppError(error);
+  if (count === null) throw new AppError("INTERNAL_ERROR");
+  const result = canDeleteClass(count);
+  if (!result.ok) throw new AppError(result.code);
+
+  const { data: imagePath, error: rpcError } = await getClient().rpc("delete_class", {
+    p_class_id: id,
+  });
+  if (rpcError) throw toAppError(rpcError);
+  if (imagePath) await removeImageBestEffort(imagePath);
+}
+
+export async function uploadClassImage(id: string, file: File): Promise<{ imageUrl: string }> {
+  const now = new Date();
+  void now;
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const result = validateImage({ type: file.type, size: file.size });
+  if (!result.ok) throw new AppError(result.code);
+
+  const { data: workshop, error } = await getClient()
+    .from("classes")
+    .select("image_path")
+    .eq("id", id)
+    .returns<{ image_path: string | null }[]>()
+    .maybeSingle();
+  if (error) throw toAppError(error);
+  if (!workshop) throw new AppError("NOT_FOUND");
+
+  const ext = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }[file.type];
+  const path = `classes/${id}/${randomUUID()}.${ext}`;
+  const bucket = getClient().storage.from("class-images");
+  const { error: uploadError } = await bucket.upload(path, file, { contentType: file.type });
+  if (uploadError) throw toAppError(uploadError);
+  const { data: { publicUrl: imageUrl } } = bucket.getPublicUrl(path);
+
+  const { data: updated, error: updateError } = await getClient()
+    .from("classes")
+    .update({ image_url: imageUrl, image_path: path })
+    .eq("id", id)
+    .select("id")
+    .returns<{ id: string }[]>()
+    .maybeSingle();
+  if (updateError || !updated) {
+    await removeImageBestEffort(path);
+    throw updateError ? toAppError(updateError) : new AppError("NOT_FOUND");
+  }
+
+  if (workshop.image_path) {
+    const { error: removeError } = await bucket.remove([workshop.image_path]);
+    if (removeError) throw toAppError(removeError);
+  }
+  return { imageUrl };
+}
+
+export async function createSession(classId: string, input: unknown): Promise<{ id: string }> {
+  const now = new Date();
+  if (!UUID_PATTERN.test(classId)) throw new AppError("NOT_FOUND");
+  const validated = validateSessionInput(input, now);
+  if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
+  const { startsAt, capacity } = validated.value;
+
+  const { data: id, error } = await getClient().rpc("create_session", {
+    p_class_id: classId,
+    p_starts_at: startsAt.toISOString(),
+    p_capacity: capacity,
+    p_now: now.toISOString(),
+  });
+  if (error) throw toAppError(error);
+  if (typeof id !== "string" || !UUID_PATTERN.test(id)) throw new AppError("INTERNAL_ERROR");
+  return { id };
+}
+
+export async function updateSession(id: string, input: unknown): Promise<void> {
+  const now = new Date();
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const validated = validateSessionPatch(input, now);
+  if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
+  const { startsAt, capacity } = validated.value;
+  const session = await readSession(id);
+  if (!session) throw new AppError("NOT_FOUND");
+  const stats = await readSessionStats(id);
+
+  if (capacity !== undefined) {
+    const result = canChangeCapacity(capacity, stats.occupied);
+    if (!result.ok) throw new AppError(result.code);
+  }
+  if (startsAt !== undefined && startsAt.getTime() !== Date.parse(session.starts_at)) {
+    const result = canChangeStartsAt(stats.booking_count, startsAt, now);
+    if (!result.ok) throw new AppError(result.code);
+  }
+
+  const { error } = await getClient().rpc("update_session", {
+    p_session_id: id,
+    p_starts_at: startsAt?.toISOString() ?? null,
+    p_capacity: capacity ?? null,
+    p_now: now.toISOString(),
+  });
+  if (error) throw toAppError(error);
+}
+
+export async function deleteSession(id: string): Promise<void> {
+  const now = new Date();
+  void now;
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const session = await readSession(id);
+  if (!session) throw new AppError("NOT_FOUND");
+  const stats = await readSessionStats(id);
+  const result = canDeleteSession(stats.booking_count);
+  if (!result.ok) throw new AppError(result.code);
+
+  const { error } = await getClient().rpc("delete_session", { p_session_id: id });
+  if (error) throw toAppError(error);
+}
+
+export async function cancelSession(id: string): Promise<void> {
+  const now = new Date();
+  void now;
+  if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
+  const session = await readSession(id);
+  if (!session) throw new AppError("NOT_FOUND");
+  const result = canCancelSession(session.status);
+  if (!result.ok) throw new AppError(result.code);
+
+  const { error } = await getClient().rpc("cancel_session", { p_session_id: id });
+  if (error) throw toAppError(error);
 }
