@@ -15,7 +15,8 @@
       "name": "db-bookings",
       "status": "completed",
       "summary": "db.ts에 listPublishedClasses·getPublishedClass·createBooking·lookupBooking·cancelBookingByCustomer·listAdminBookings·changeBookingStatus 구현, db.test.ts 내부 mockSupabase 체인·RPC 헬퍼로 요청 시각·고객 인증·오류 변환 등 53개 및 전체 테스트 358개·AC 통과",
-      "started_at": "2026-10-17T16:20:05+0900"
+      "started_at": "2026-10-17T16:20:05+0900",
+      "completed_at": "2026-10-17T16:25:23+0900"
     },
     {
       "step": 2,
