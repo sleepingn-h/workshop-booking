@@ -23,7 +23,8 @@
       "name": "api-admin-bookings",
       "status": "completed",
       "summary": "운영자 로그인·로그아웃 쿠키와 인증 우선 예약 목록·동작별 상태 변경 API 구현, 신규 테스트 38개·전체 551개 및 AC·아키텍처 점검 통과",
-      "started_at": "2026-10-17T16:36:44+0900"
+      "started_at": "2026-10-17T16:36:44+0900",
+      "completed_at": "2026-10-17T16:39:59+0900"
     },
     {
       "step": 3,
