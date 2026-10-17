@@ -2,9 +2,28 @@
   "project": "workshop-booking",
   "phase": "4-api",
   "steps": [
-    { "step": 0, "name": "api-client", "status": "pending" },
-    { "step": 1, "name": "api-public", "status": "pending" },
-    { "step": 2, "name": "api-admin-bookings", "status": "pending" },
-    { "step": 3, "name": "api-admin-catalog", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "api-client",
+      "status": "completed",
+      "summary": "apiFetch·ApiError 구현: JSON·FormData·동일 출처 쿠키와 응답·오류 변환, 신규 테스트 30개·전체 453개 및 AC 통과",
+      "started_at": "2026-10-17T16:30:45+0900"
+    },
+    {
+      "step": 1,
+      "name": "api-public",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "api-admin-bookings",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "api-admin-catalog",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-10-17T16:30:45+0900"
 }
