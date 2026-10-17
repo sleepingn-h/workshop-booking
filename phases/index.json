@@ -3,7 +3,8 @@
   "phases": [
     {
       "dir": "0-foundation",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-10-17T16:02:46+0900"
     },
     {
       "dir": "1-domain-rules",
