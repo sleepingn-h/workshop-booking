@@ -7,7 +7,8 @@
       "name": "db-schema",
       "status": "completed",
       "summary": "schema.sql에 RLS 테이블 3개·session_stats 뷰·class-images 버킷, create_booking→text·customer_cancel_booking/admin_set_booking_status/update_session/delete_session/cancel_session/set_class_published→void·admin_list_bookings→table·create_session→uuid·delete_class→text RPC와 BK-DEMO01~BK-DEMO11 샘플을 구성하고 AC 및 기존 테스트 305개 통과",
-      "started_at": "2026-10-17T16:15:26+0900"
+      "started_at": "2026-10-17T16:15:26+0900",
+      "completed_at": "2026-10-17T16:20:05+0900"
     },
     {
       "step": 1,
