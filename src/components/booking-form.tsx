@@ -100,7 +100,7 @@ export function BookingForm({
       noValidate
       aria-label="예약 신청"
       aria-busy={mutation.isPending}
-      className="flex min-w-0 flex-col gap-6 rounded-[var(--radius-card)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)] max-[900px]:pb-32 min-[901px]:sticky min-[901px]:top-[92px] min-[901px]:self-start"
+      className="flex min-w-0 flex-col gap-6 rounded-[var(--radius-card)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)] max-[901px]:pb-32 min-[901px]:sticky min-[901px]:top-[92px] min-[901px]:self-start"
     >
       <div>
         <h2 className="font-heading text-2xl font-bold text-[var(--text-strong)]">예약 신청</h2>
@@ -217,7 +217,7 @@ export function BookingForm({
         <p role="status" className={noticeClassName}>남은 자리가 바뀌었습니다. 회차와 인원을 다시 확인해 주세요.</p>
       )}
 
-      <div className="max-[900px]:fixed max-[900px]:inset-x-0 max-[900px]:bottom-0 max-[900px]:z-20 max-[900px]:border-t max-[900px]:border-[var(--border-subtle)] max-[900px]:bg-[var(--surface-card)] max-[900px]:px-4 max-[900px]:pt-3 max-[900px]:pb-[max(20px,env(safe-area-inset-bottom))]">
+      <div className="max-[901px]:fixed max-[901px]:inset-x-0 max-[901px]:bottom-0 max-[901px]:z-20 max-[901px]:border-t max-[901px]:border-[var(--border-subtle)] max-[901px]:bg-[var(--surface-card)] max-[901px]:px-4 max-[901px]:pt-3 max-[901px]:pb-[max(20px,env(safe-area-inset-bottom))]">
         <Button
           type="submit"
           size="lg"
