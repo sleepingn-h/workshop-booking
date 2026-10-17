@@ -2,7 +2,18 @@
   "project": "workshop-booking",
   "phase": "2-admin-auth",
   "steps": [
-    { "step": 0, "name": "admin-auth", "status": "pending" },
-    { "step": 1, "name": "admin-proxy", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "admin-auth",
+      "status": "completed",
+      "summary": "ADMIN_COOKIE(admin_session)·SESSION_TTL_MS와 createSessionToken·verifySessionToken·checkPassword·isAdminRequest·sessionCookieOptions 구현, 인증 테스트 54개 및 전체 AC 통과",
+      "started_at": "2026-10-17T16:09:21+0900"
+    },
+    {
+      "step": 1,
+      "name": "admin-proxy",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-10-17T16:09:21+0900"
 }
