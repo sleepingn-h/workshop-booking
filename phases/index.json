@@ -18,7 +18,8 @@
     },
     {
       "dir": "3-database",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-10-17T16:30:13+0900"
     },
     {
       "dir": "4-api",
