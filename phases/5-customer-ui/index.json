@@ -24,7 +24,7 @@
       "status": "completed",
       "started_at": "2026-10-17T16:53:05+0900",
       "summary": "고객 헤더·목록·상세·신청 완료와 CopyButton 구현: 요청별 동적 조회·공개 OG·비공개/완료 noindex·Supabase 이미지 설정·640/900px 경계 보정; 복사 테스트 4개·전체 672개 및 AC·360~1280px 브라우저 점검 통과",
-      "completed_at": "2026-10-17T17:00:58+0900"
+      "completed_at": "2026-10-17T17:01:52+0900"
     },
     {
       "step": 3,
