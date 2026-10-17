@@ -2,6 +2,13 @@
   "project": "workshop-booking",
   "phase": "1-domain-rules",
   "steps": [
-    { "step": 0, "name": "domain-rules", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "domain-rules",
+      "status": "completed",
+      "summary": "BookingStatus·BookingInput·AppError·DTO와 occupiedSeats·remainingSeats·canApply·canTransition·validate* 및 회차·클래스 관리 순수 규칙 구현, 규칙 테스트 202개와 전체 AC 통과",
+      "started_at": "2026-10-17T16:03:16+0900"
+    }
+  ],
+  "created_at": "2026-10-17T16:03:16+0900"
 }
