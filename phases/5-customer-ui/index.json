@@ -2,9 +2,28 @@
   "project": "workshop-booking",
   "phase": "5-customer-ui",
   "steps": [
-    { "step": 0, "name": "status-badge", "status": "pending" },
-    { "step": 1, "name": "booking-form", "status": "pending" },
-    { "step": 2, "name": "customer-pages", "status": "pending" },
-    { "step": 3, "name": "booking-lookup", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "status-badge",
+      "status": "completed",
+      "summary": "BookingStatusBadge·Tag 구현: BOOKING_STATUS_LABEL과 --badge-{상태}-{bg|text}, --color-green·--text-on-green·--status-neutral(-bg)·--status-danger(-bg)·--radius-card 재사용, 표시 테스트 8개·전체 642개 및 AC 통과",
+      "started_at": "2026-10-17T16:45:09+0900"
+    },
+    {
+      "step": 1,
+      "name": "booking-form",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "customer-pages",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "booking-lookup",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-10-17T16:45:09+0900"
 }
