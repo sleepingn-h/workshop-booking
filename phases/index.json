@@ -28,7 +28,8 @@
     },
     {
       "dir": "5-customer-ui",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-10-19T13:01:40+0900"
     },
     {
       "dir": "6-admin-ui",
