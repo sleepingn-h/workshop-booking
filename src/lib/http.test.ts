@@ -74,6 +74,7 @@ describe("toErrorResponse", () => {
     { code: "CAPACITY_BELOW_OCCUPIED", status: 409, rule: "R-40" },
     { code: "SESSION_HAS_BOOKINGS", status: 409, rule: "R-41, R-44" },
     { code: "CLASS_HAS_SESSIONS", status: 409, rule: "R-51" },
+    { code: "MOCK_READ_ONLY", status: 503, rule: "목 모드 변경 거부" },
     { code: "INTERNAL_ERROR", status: 500, rule: "서버 오류" },
   ];
 

@@ -13,7 +13,10 @@
     {
       "step": 1,
       "name": "db-mock-switch",
-      "status": "pending"
+      "status": "completed",
+      "summary": "db.ts 조회 6개 목 데이터 위임·변경 11개 MOCK_READ_ONLY(503) 거부, production 차단·요청 시각 전달·MOCK_DB 예제 추가 및 신규 20개·전체 875개 테스트·AC·3100 포트 HTTP 검증 통과",
+      "started_at": "2026-10-19T14:14:16+0900",
+      "completed_at": "2026-10-19T14:17:56+0900"
     }
   ],
   "created_at": "2026-10-19T13:45:33+0900"

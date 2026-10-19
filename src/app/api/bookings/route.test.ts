@@ -46,6 +46,7 @@ describe("POST /api/bookings", () => {
     { code: "INVALID_HEADCOUNT", status: 400, rule: "R-12" },
     { code: "DUPLICATE_BOOKING", status: 409, rule: "R-16" },
     { code: "NOT_FOUND", status: 404, rule: "R-52" },
+    { code: "MOCK_READ_ONLY", status: 503, rule: "목 모드 변경 거부" },
   ])("$rule: DB의 $code 오류를 $status로 변환한다", async ({ code, status }) => {
     createBookingMock.mockRejectedValue(new AppError(code));
 

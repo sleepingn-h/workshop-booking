@@ -69,12 +69,14 @@ describe("에러와 상태 계약", () => {
       CAPACITY_BELOW_OCCUPIED: 409,
       SESSION_HAS_BOOKINGS: 409,
       CLASS_HAS_SESSIONS: 409,
+      MOCK_READ_ONLY: 503,
       INTERNAL_ERROR: 500,
     };
 
     expect(ERROR_CODES).toEqual(Object.keys(expected));
     expect(ERROR_HTTP_STATUS).toEqual(expected);
     expect(Object.keys(ERROR_MESSAGE)).toEqual(ERROR_CODES);
+    expect(ERROR_MESSAGE.MOCK_READ_ONLY).toBe("목 데이터 모드에서는 변경할 수 없습니다.");
     for (const code of ERROR_CODES) {
       expect(ERROR_MESSAGE[code]).toMatch(/[가-힣]/);
     }

@@ -98,12 +98,15 @@ const credentials = { code: " bk-demo01 ", phoneLast4: "0001" };
 let client: ReturnType<typeof mockSupabase>;
 let db: typeof import("./db");
 let rules: typeof import("./rules");
+let mockDb: typeof import("./mock-db");
 let AppError: typeof import("./types").AppError;
 
 beforeEach(async () => {
   vi.resetModules();
   vi.useFakeTimers();
   vi.setSystemTime(now);
+  vi.stubEnv("MOCK_DB", undefined);
+  vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("SUPABASE_URL", "https://workshop.example.test");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key");
   createClient.mockReset();
@@ -111,6 +114,7 @@ beforeEach(async () => {
   createClient.mockReturnValue(client);
   db = await import("./db");
   rules = await import("./rules");
+  mockDb = await import("./mock-db");
   ({ AppError } = await import("./types"));
 });
 
@@ -139,6 +143,95 @@ function queueLookup(
   client.queue("sessions", { ...session, ...sessionPatch });
   client.queue("classes", { ...workshop, ...classPatch });
 }
+
+describe("개발용 읽기 전용 목 모드 분기", () => {
+  beforeEach(() => {
+    vi.stubEnv("MOCK_DB", "1");
+    vi.stubEnv("SUPABASE_URL", undefined);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", undefined);
+  });
+
+  const filter = { sessionId, status: "pending", q: " 가상예약자01 " };
+
+  it.each([
+    { name: "listPublishedClasses", call: () => db.listPublishedClasses(), spy: () => vi.spyOn(mockDb, "mockListPublishedClasses"), args: [] },
+    { name: "getPublishedClass", call: () => db.getPublishedClass(classId), spy: () => vi.spyOn(mockDb, "mockGetPublishedClass"), args: [classId] },
+    { name: "lookupBooking", call: () => db.lookupBooking(credentials), spy: () => vi.spyOn(mockDb, "mockLookupBooking"), args: [credentials] },
+    { name: "listAdminBookings", call: () => db.listAdminBookings(filter), spy: () => vi.spyOn(mockDb, "mockListAdminBookings"), args: [filter] },
+    { name: "listAdminClasses", call: () => db.listAdminClasses(), spy: () => vi.spyOn(mockDb, "mockListAdminClasses"), args: [] },
+    { name: "getAdminClass", call: () => db.getAdminClass(classId), spy: () => vi.spyOn(mockDb, "mockGetAdminClass"), args: [classId] },
+  ])("$name: Supabase 없이 같은 인자와 분기 전 요청 시각을 목 함수에 넘긴다", async ({ call, spy, args }) => {
+    const delegate = spy();
+    const isMockDb = mockDb.isMockDb;
+    vi.spyOn(mockDb, "isMockDb").mockImplementation(() => {
+      vi.setSystemTime("2026-10-25T00:00:00Z");
+      return isMockDb();
+    });
+
+    const result = await call();
+
+    expect(delegate).toHaveBeenCalledExactlyOnceWith(...args, now);
+    expect(result).toBe(delegate.mock.results[0].value);
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "createBooking", call: () => db.createBooking(input), invalidCall: () => db.createBooking({}) },
+    { name: "cancelBookingByCustomer", call: () => db.cancelBookingByCustomer(credentials.code, { phoneLast4: "0001" }), invalidCall: () => db.cancelBookingByCustomer("", {}) },
+    { name: "changeBookingStatus", call: () => db.changeBookingStatus(bookingId, "confirm"), invalidCall: () => db.changeBookingStatus("invalid-id", "confirm") },
+    { name: "createClass", call: () => db.createClass({ title: "새 클래스", description: "안내" }), invalidCall: () => db.createClass({ title: " " }) },
+    { name: "updateClass", call: () => db.updateClass(classId, { title: "수정" }), invalidCall: () => db.updateClass("invalid-id", {}) },
+    { name: "deleteClass", call: () => db.deleteClass(classId), invalidCall: () => db.deleteClass("invalid-id") },
+    { name: "uploadClassImage", call: () => db.uploadClassImage(classId, new File(["image"], "test.jpg", { type: "image/jpeg" })), invalidCall: () => db.uploadClassImage(classId, new File(["image"], "test.gif", { type: "image/gif" })) },
+    { name: "createSession", call: () => db.createSession(classId, { startsAt: session.starts_at, capacity: 6 }), invalidCall: () => db.createSession(classId, { startsAt: now.toISOString(), capacity: 0 }) },
+    { name: "updateSession", call: () => db.updateSession(sessionId, { capacity: 4 }), invalidCall: () => db.updateSession(sessionId, { capacity: 0 }) },
+    { name: "deleteSession", call: () => db.deleteSession(sessionId), invalidCall: () => db.deleteSession("invalid-id") },
+    { name: "cancelSession", call: () => db.cancelSession(sessionId), invalidCall: () => db.cancelSession("invalid-id") },
+  ])("$name: 유효·무효 입력 모두 검증·DB·Storage 호출 전에 MOCK_READ_ONLY로 거부한다", async ({ call, invalidCall }) => {
+    const validators = [
+      "validateBookingInput", "validateLookupInput", "validateClassInput", "validateClassPatch",
+      "validateImage", "validateSessionInput", "validateSessionPatch",
+    ] as const;
+    const validationSpies = validators.map((name) => vi.spyOn(rules, name));
+
+    for (const attempt of [call, invalidCall]) {
+      await expect(attempt()).rejects.toMatchObject({
+        code: "MOCK_READ_ONLY",
+        message: "목 데이터 모드에서는 변경할 수 없습니다.",
+      });
+    }
+
+    for (const validate of validationSpies) expect(validate).not.toHaveBeenCalled();
+    expect(createClient).not.toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(client.storage.from).not.toHaveBeenCalled();
+    expect(client.bucket.upload).not.toHaveBeenCalled();
+    expect(client.bucket.remove).not.toHaveBeenCalled();
+  });
+
+  it("production에서는 MOCK_DB=1이어도 실제 조건에 따라 Supabase로 조회·저장한다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SUPABASE_URL", "https://workshop.example.test");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key");
+    const delegate = vi.spyOn(mockDb, "mockListPublishedClasses");
+    client.queue("classes", []);
+    client.queue("classes", { id: classId });
+
+    await expect(db.listPublishedClasses()).resolves.toEqual([]);
+    await expect(db.createClass({ title: "새 클래스", description: "안내" })).resolves.toEqual({ id: classId });
+
+    expect(delegate).not.toHaveBeenCalled();
+    expect(createClient).toHaveBeenCalledExactlyOnceWith(
+      "https://workshop.example.test",
+      "test-service-role-key",
+      { auth: { persistSession: false } },
+    );
+    expect(client.queries[1].chain.insert).toHaveBeenCalledWith({ title: "새 클래스", description: "안내" });
+  });
+});
 
 describe("Supabase 클라이언트와 에러 처리", () => {
   it("모듈을 불러올 때는 클라이언트를 만들지 않고 첫 호출부터 재사용한다", async () => {

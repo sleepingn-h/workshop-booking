@@ -5,6 +5,15 @@ import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  isMockDb,
+  mockGetAdminClass,
+  mockGetPublishedClass,
+  mockListAdminBookings,
+  mockListAdminClasses,
+  mockListPublishedClasses,
+  mockLookupBooking,
+} from "./mock-db";
+import {
   canApply,
   canCancelSession,
   canChangeCapacity,
@@ -178,6 +187,7 @@ function toBookingLookupResult(
 
 export async function listPublishedClasses(): Promise<ClassSummary[]> {
   const now = new Date();
+  if (isMockDb()) return mockListPublishedClasses(now);
   const { data: classes, error } = await getClient()
     .from("classes")
     .select(CLASS_COLUMNS)
@@ -207,6 +217,7 @@ export async function listPublishedClasses(): Promise<ClassSummary[]> {
 
 export async function getPublishedClass(id: string): Promise<ClassDetail | null> {
   const now = new Date();
+  if (isMockDb()) return mockGetPublishedClass(id, now);
   if (!UUID_PATTERN.test(id)) return null;
 
   const workshop = await readClass(id);
@@ -248,6 +259,7 @@ export async function getPublishedClass(id: string): Promise<ClassDetail | null>
 
 export async function createBooking(input: unknown): Promise<CreateBookingResult> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   const validated = validateBookingInput(input);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
   const { sessionId, headcount, customerName, phone } = validated.value;
@@ -289,6 +301,7 @@ export async function createBooking(input: unknown): Promise<CreateBookingResult
 
 export async function lookupBooking(input: unknown): Promise<BookingLookupResult> {
   const now = new Date();
+  if (isMockDb()) return mockLookupBooking(input, now);
   const validated = validateLookupInput(input);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
 
@@ -298,6 +311,7 @@ export async function lookupBooking(input: unknown): Promise<BookingLookupResult
 
 export async function cancelBookingByCustomer(code: string, input: unknown): Promise<BookingLookupResult> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   const phoneLast4 = typeof input === "object" && input !== null && "phoneLast4" in input
     ? input.phoneLast4
     : undefined;
@@ -328,8 +342,7 @@ export async function listAdminBookings(filter: {
   q?: string | null;
 }): Promise<AdminBookingList> {
   const now = new Date();
-  // 목록은 시간 판정이 없지만 모든 공개 함수의 요청 시각 수집 규약을 따른다.
-  void now;
+  if (isMockDb()) return mockListAdminBookings(filter, now);
   const { sessionId = null, status = null, q = null } = filter;
   if ((status !== null && !Object.hasOwn(BOOKING_STATUS_LABEL, status)) ||
       (sessionId !== null && !UUID_PATTERN.test(sessionId))) {
@@ -377,6 +390,7 @@ export async function listAdminBookings(filter: {
 
 export async function changeBookingStatus(id: string, action: BookingAction): Promise<void> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const { data: booking, error } = await getClient()
     .from("bookings")
@@ -426,7 +440,7 @@ async function removeImageBestEffort(path: string): Promise<void> {
 
 export async function listAdminClasses(): Promise<AdminClassSummary[]> {
   const now = new Date();
-  void now;
+  if (isMockDb()) return mockListAdminClasses(now);
   const { data, error } = await getClient()
     .from("classes")
     .select(`${CLASS_COLUMNS},sessions(count)`)
@@ -445,7 +459,7 @@ export async function listAdminClasses(): Promise<AdminClassSummary[]> {
 
 export async function getAdminClass(id: string): Promise<AdminClassDetail> {
   const now = new Date();
-  void now;
+  if (isMockDb()) return mockGetAdminClass(id, now);
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const workshop = await readClass(id);
   if (!workshop) throw new AppError("NOT_FOUND");
@@ -490,6 +504,7 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
 
 export async function createClass(input: unknown): Promise<{ id: string }> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   void now;
   const validated = validateClassInput(input);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
@@ -507,6 +522,7 @@ export async function createClass(input: unknown): Promise<{ id: string }> {
 
 export async function updateClass(id: string, input: unknown): Promise<void> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   void now;
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const validated = validateClassPatch(input);
@@ -539,6 +555,7 @@ export async function updateClass(id: string, input: unknown): Promise<void> {
 
 export async function deleteClass(id: string): Promise<void> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   void now;
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const workshop = await readClass(id);
@@ -562,6 +579,7 @@ export async function deleteClass(id: string): Promise<void> {
 
 export async function uploadClassImage(id: string, file: File): Promise<{ imageUrl: string }> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   void now;
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const result = validateImage({ type: file.type, size: file.size });
@@ -604,6 +622,7 @@ export async function uploadClassImage(id: string, file: File): Promise<{ imageU
 
 export async function createSession(classId: string, input: unknown): Promise<{ id: string }> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   if (!UUID_PATTERN.test(classId)) throw new AppError("NOT_FOUND");
   const validated = validateSessionInput(input, now);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
@@ -622,6 +641,7 @@ export async function createSession(classId: string, input: unknown): Promise<{ 
 
 export async function updateSession(id: string, input: unknown): Promise<void> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const validated = validateSessionPatch(input, now);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
@@ -650,6 +670,7 @@ export async function updateSession(id: string, input: unknown): Promise<void> {
 
 export async function deleteSession(id: string): Promise<void> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   void now;
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const session = await readSession(id);
@@ -664,6 +685,7 @@ export async function deleteSession(id: string): Promise<void> {
 
 export async function cancelSession(id: string): Promise<void> {
   const now = new Date();
+  if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
   void now;
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const session = await readSession(id);
