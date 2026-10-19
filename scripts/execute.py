@@ -267,7 +267,8 @@ class StepExecutor:
         result = subprocess.run(
             ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--json",
              "-C", self._root, prompt],
-            cwd=self._root, capture_output=True, text=True, timeout=1800,
+            # stdin을 닫지 않으면 codex exec가 추가 입력을 기다리며 멈춘다.
+            cwd=self._root, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=1800,
         )
 
         if result.returncode != 0:
