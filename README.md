@@ -139,6 +139,11 @@ npm run build
 | `ADMIN_PASSWORD` | 운영자 로그인 비밀번호 |
 | `ADMIN_SESSION_SECRET` | 운영자 세션 쿠키의 HMAC 서명 키 |
 | `NEXT_PUBLIC_SITE_URL` | OG·canonical 절대 주소 생성 |
+| `MOCK_DB` | `1`이면 개발 서버에서 읽기 전용 목 데이터 모드 사용 (production에서는 무시) |
+
+### Supabase 없이 화면 확인하기
+
+`.env.local`에 `MOCK_DB=1`과 `ADMIN_PASSWORD`·`ADMIN_SESSION_SECRET`만 설정하고 `npm run dev`를 실행하면, 아래 샘플 데이터와 같은 클래스·회차·예약으로 고객·운영자 화면을 조회할 수 있습니다. 샘플 회차 시각은 개발 서버 시작 시각 기준입니다. 신청·취소·승인과 클래스·회차 관리 같은 변경은 `MOCK_READ_ONLY` 오류로 거부합니다. 프로덕션 빌드(`npm run build && npm start`)에서는 켜지지 않습니다(ADR-012).
 
 ## DB 준비와 데모 초기화
 

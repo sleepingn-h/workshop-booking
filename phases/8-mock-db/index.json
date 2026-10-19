@@ -1,0 +1,8 @@
+{
+  "project": "workshop-booking",
+  "phase": "8-mock-db",
+  "steps": [
+    { "step": 0, "name": "mock-data", "status": "pending" },
+    { "step": 1, "name": "db-mock-switch", "status": "pending" }
+  ]
+}

@@ -49,6 +49,7 @@ src/
 │   ├── types.ts                                  # 도메인 타입·상태·에러 코드
 │   ├── rules.ts (+ .test.ts)                     # 순수 함수: 자리·전이·기한·입력 검증·전화번호 정규화
 │   ├── db.ts (+ .test.ts)                        # Supabase(DB·Storage) 호출 + 요청 처리 순서
+│   ├── mock-db.ts (+ .test.ts)                   # 개발용 읽기 전용 목 데이터 (MOCK_DB=1, production 제외)
 │   ├── auth.ts (+ .test.ts)                      # 운영자 쿠키 서명·검증 (node:crypto HMAC)
 │   ├── format.ts (+ .test.ts)                    # Asia/Seoul 시각 표시·입력 변환
 │   ├── http.ts (+ .test.ts)                      # Route Handler 공용: JSON 파싱, 운영자 확인, 에러 → HTTP 응답
@@ -67,6 +68,7 @@ scripts/hooks/
 - **원자적 처리는 Postgres 함수**: 예약 생성·상태 변경과 회차 정원 변경·취소·삭제, 클래스 삭제·공개 전환은 `schema.sql`의 함수가 한 트랜잭션에서 행을 잠그고 상태·남은 자리·예약 이력을 다시 확인한 뒤 저장한다. 회차 취소는 회차와 활성 예약을 함께 취소한다.
 - **이미지는 운영자 API 경유**: 브라우저가 Storage에 직접 올리지 않는다. 운영자 Route Handler가 형식(JPEG·PNG·WebP)과 크기(4MB)를 확인한 뒤 서버에서 Supabase Storage에 저장한다.
 - **요청 시각**: `db.ts` 함수는 진입 시 DB 조회 전에 서버 시각을 한 번 읽어 규칙 함수(`now`)와 SQL 함수(`p_now`)에 같은 값을 넘긴다. 신청·승인·고객 취소의 시간 제한은 이 요청 시각으로 판정한다. SQL 함수는 `now()`를 쓰지 않는다.
+- **개발용 목 데이터 모드**: `MOCK_DB=1`이고 production이 아니면 `db.ts`의 조회 함수가 요청 시각을 읽은 뒤 Supabase 대신 `mock-db.ts`의 고정 샘플(Supabase 샘플과 같은 데이터)을 `rules.ts`로 계산해 돌려준다. 변경 함수는 `MOCK_READ_ONLY`(503)로 거부한다. 저장소 없이 화면을 확인하기 위한 모드이며 예약 저장의 원본은 Postgres 하나다.
 - **얇은 Route Handler**: 요청 파싱, 운영자 쿠키 확인, `db.ts` 호출, 에러 코드 → HTTP 상태 변환만 한다.
 
 ## 데이터 흐름

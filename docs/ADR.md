@@ -25,7 +25,7 @@
 **트레이드오프**: 핵심 규칙 일부가 SQL에도 들어가 TypeScript와 두 곳에서 관리된다. Supabase CLI·마이그레이션 이력 없이 SQL Editor에서 수동 실행한다.
 
 ### ADR-004: 구현 파일마다 테스트, 실제 DB는 시연으로 확인
-**결정**: `scripts/hooks/tdd-guard.sh`로 테스트 파일이 없는 구현 파일 편집을 막는다. 규칙(`src/lib/rules.ts`)은 순수 함수 테스트로, `db.ts`·`api.ts`·Route Handler·컴포넌트·`src/proxy.ts`는 Supabase·`fetch`·`db.ts`를 모킹한 테스트로 검증한다(Vitest, React Testing Library). 메모리 저장소나 로컬·테스트용 DB는 두지 않는다. Postgres 함수를 거치는 흐름은 배포 환경 시연으로 확인한다.
+**결정**: `scripts/hooks/tdd-guard.sh`로 테스트 파일이 없는 구현 파일 편집을 막는다. 규칙(`src/lib/rules.ts`)은 순수 함수 테스트로, `db.ts`·`api.ts`·Route Handler·컴포넌트·`src/proxy.ts`는 Supabase·`fetch`·`db.ts`를 모킹한 테스트로 검증한다(Vitest, React Testing Library). 메모리 저장소나 로컬·테스트용 DB는 두지 않는다(개발용 읽기 전용 목 데이터는 ADR-012). Postgres 함수를 거치는 흐름은 배포 환경 시연으로 확인한다.
 **이유**: 테스트 먼저 작성하는 순서를 문서가 아닌 도구로 강제한다. 정원·상태 전이·취소 기한은 DB 없이 빠르게 검증하고, 요청 시각 전달·에러 코드 변환·화면 상태 처리도 인프라 없이 확인할 수 있다.
 **트레이드오프**: 구현 파일 수만큼 테스트 파일이 생겨 테스트 작성 시간이 늘어난다. 모킹 테스트는 SQL 함수의 동작을 증명하지 않아 중복 신청·자리 복구·동시 신청 보장(R-15)은 SQL 구현과 시연으로 확인한다. TS 규칙과 SQL 함수가 어긋나도 자동으로 발견되지 않는다.
 
@@ -63,3 +63,8 @@
 **결정**: 운영자 화면은 이미지를 자체 API(`PUT /api/admin/classes/:id/image`)로 보내고, Route Handler가 형식·크기를 확인한 뒤 서버 키로 Supabase Storage 공개 버킷에 저장한다. 브라우저에서 Storage로 직접 올리지 않는다.
 **이유**: 브라우저는 자체 REST API만 호출한다는 규칙과 운영자 인증을 그대로 쓸 수 있고, 서버 전용 키를 브라우저에 노출하거나 Storage 정책을 따로 만들 필요가 없다.
 **트레이드오프**: 파일이 앱 서버를 거쳐 서버 대역폭을 쓰고, 배포 플랫폼의 요청 크기 제한(Vercel 4.5MB) 때문에 이미지를 4MB 이하로 제한한다.
+
+### ADR-012: 개발용 읽기 전용 목 데이터 모드
+**결정**: `MOCK_DB=1`이고 production이 아닐 때만 `src/lib/mock-db.ts`의 고정 샘플(Supabase 샘플과 같은 클래스·회차·예약)로 조회 함수를 대신한다. 변경 요청은 `MOCK_READ_ONLY`(503)로 거부한다. Supabase 환경 변수가 비어 있다는 이유로 자동으로 켜지지 않는다.
+**이유**: Supabase 프로젝트 없이도 로컬에서 고객·운영자 화면과 상태별 표시를 확인할 수 있다. 조회만 대신하므로 예약 저장의 원본은 계속 Postgres 하나이고, 남은 자리·취소 가능 여부는 같은 `rules.ts`로 계산한다. 명시적 플래그와 production 차단으로 배포 환경에서 가짜 데이터가 노출되지 않는다.
+**트레이드오프**: 샘플 데이터가 `schema.sql`과 `mock-db.ts` 두 곳에 있어 함께 고쳐야 한다. 목 모드에서는 신청·승인·관리 흐름을 확인할 수 없고, 조회 결과가 SQL 뷰·함수와 어긋나도 자동으로 발견되지 않는다.

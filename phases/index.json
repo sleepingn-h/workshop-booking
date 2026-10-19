@@ -40,6 +40,10 @@
       "dir": "7-readme",
       "status": "completed",
       "completed_at": "2026-10-19T13:33:36+0900"
+    },
+    {
+      "dir": "8-mock-db",
+      "status": "pending"
     }
   ]
 }
