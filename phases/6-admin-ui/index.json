@@ -21,7 +21,10 @@
     {
       "step": 2,
       "name": "admin-session-ui",
-      "status": "pending"
+      "status": "completed",
+      "summary": "회차 목록·추가·수정·삭제·취소와 KST 입력·정원/이력 보호·활성 예약 건수 확인창·반응형 표/카드 구현: 클래스 상세 쿼리 공유·['admin'] 접두 무효화, 신규 28개/전체 790개 테스트·AC·360~1280px Chrome API 모킹 점검 통과",
+      "started_at": "2026-10-19T13:23:15+0900",
+      "completed_at": "2026-10-19T13:28:49+0900"
     }
   ],
   "created_at": "2026-10-19T13:04:32+0900"
