@@ -2,8 +2,23 @@
   "project": "workshop-booking",
   "phase": "6-admin-ui",
   "steps": [
-    { "step": 0, "name": "admin-bookings-ui", "status": "pending" },
-    { "step": 1, "name": "admin-class-ui", "status": "pending" },
-    { "step": 2, "name": "admin-session-ui", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "admin-bookings-ui",
+      "status": "completed",
+      "summary": "운영자 로그인·헤더·예약 필터/검색·승인/거절/취소·확인창·반응형 표/카드와 noindex 페이지 구현: ['admin', 'bookings', filters] 조회·['admin'] 접두 무효화, 신규 36개/전체 734개 테스트·AC·360~1280px Chrome API 모킹 점검 통과",
+      "started_at": "2026-10-19T13:04:32+0900"
+    },
+    {
+      "step": 1,
+      "name": "admin-class-ui",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "admin-session-ui",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-10-19T13:04:32+0900"
 }
