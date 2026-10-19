@@ -29,7 +29,10 @@
     {
       "step": 3,
       "name": "booking-lookup",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-10-19T12:55:51+0900",
+      "summary": "BookingLookup·noindex 조회 페이지 구현: useQuery 조회·재조회, 취소 확인·useMutation 무효화·토스트, R-30~R-33 안내·KST·키보드 접근성; 신규 테스트 26개·전체 698개와 AC·360~1280px Chrome 모킹 점검 통과",
+      "completed_at": "2026-10-19T13:00:47+0900"
     }
   ],
   "created_at": "2026-10-17T16:45:09+0900"
