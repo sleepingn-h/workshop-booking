@@ -21,7 +21,7 @@
 - CRITICAL: 브라우저(클라이언트 컴포넌트)는 자체 REST API(`src/app/api/` Route Handlers)만 호출한다. Supabase를 직접 호출하지 않는다.
 - CRITICAL: 서버 컴포넌트는 자기 REST API를 HTTP로 다시 부르지 않고 Route Handler와 같은 `src/lib/db.ts` 함수를 직접 호출한다. 클래스 목록·상세 조회 API(`GET /api/classes`)는 만들지 않는다.
 - CRITICAL: 예약 규칙(자리·전이·기한·입력 검증)은 `src/lib/rules.ts`의 순수 함수로 작성한다. DB·네트워크·현재 시각에 의존하지 않는다.
-- CRITICAL: 요청 처리 순서(조회 → 규칙 확인 → 저장)는 `src/lib/db.ts` 함수에 둔다. Service·Repository 계층이나 메모리 저장소를 만들지 않는다. 조회한 값만으로 변경을 확정하지 않는다.
+- CRITICAL: 요청 처리 순서(조회 → 규칙 확인 → 저장)는 `src/lib/db.ts` 함수에 둔다. Service·Repository 계층이나 메모리 저장소를 만들지 않는다(예외: `src/lib/mock-db.ts`의 개발용 읽기 전용 목 데이터 모드 — `MOCK_DB=1`이고 production이 아닐 때만, 변경은 `MOCK_READ_ONLY`로 거부). 조회한 값만으로 변경을 확정하지 않는다.
 - CRITICAL: 예약 생성·상태 변경과 회차 정원 변경·취소·삭제, 클래스 삭제·공개 전환은 `supabase/schema.sql`의 Postgres 함수 한 트랜잭션 안에서 처리한다(행 잠금, R-15).
 - CRITICAL: 요청 시각은 `src/lib/db.ts` 함수 진입 시 DB 조회 전에 한 번 읽어 규칙 함수(`now`)와 Postgres 함수(`p_now`)에 같은 값을 넘긴다. Postgres 함수는 `now()`를 쓰지 않는다.
 - CRITICAL: `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`는 서버 코드에서만 사용하고 브라우저 번들·로그·README에 노출하지 않는다.
