@@ -42,9 +42,11 @@ src/
 │   ├── booking-lookup.tsx (+ .test.tsx)          # 조회·취소
 │   ├── admin-login-form.tsx (+ .test.tsx)        # 운영자 로그인 폼
 │   ├── admin-header.tsx (+ .test.tsx)            # 운영자 내비·로그아웃
-│   ├── admin-booking-list.tsx (+ .test.tsx)      # 운영자 예약 목록·검색
-│   ├── admin-class-form.tsx (+ .test.tsx)        # 클래스 생성·수정·이미지
-│   └── admin-session-list.tsx (+ .test.tsx)      # 회차 관리
+│   ├── admin-booking-list.tsx (+ .test.tsx)      # 운영자 예약 목록·상태 탭·검색
+│   ├── admin-class-list.tsx (+ .test.tsx)        # 운영자 클래스 목록·공개 스위치
+│   ├── admin-class-form.tsx (+ .test.tsx)        # 클래스 생성·수정·이미지·공개·삭제
+│   ├── admin-session-list.tsx (+ .test.tsx)      # 회차 관리
+│   └── toggle-switch.tsx (+ .test.tsx)           # 공개 전환 스위치
 ├── lib/
 │   ├── types.ts                                  # 도메인 타입·상태·에러 코드
 │   ├── rules.ts (+ .test.ts)                     # 순수 함수: 자리·전이·기한·입력 검증·전화번호 정규화

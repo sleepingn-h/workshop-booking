@@ -114,7 +114,7 @@ npm install
 cp .env.example .env.local
 ```
 
-`.env.local`에 아래 환경 변수를 설정하고, 아래 DB 준비 절차와 샘플 이미지 준비를 마친 뒤 실행합니다.
+`.env.local`에 아래 환경 변수를 설정하고, 아래 DB 준비 절차를 마친 뒤 실행합니다.
 
 ```bash
 npm run dev
@@ -149,7 +149,7 @@ npm run build
 
 1. Supabase 프로젝트를 생성합니다.
 2. 프로젝트의 SQL Editor에서 [supabase/schema.sql](supabase/schema.sql) **전체**를 실행합니다. 테이블·예약/관리 함수·`session_stats` 뷰·`class-images` 공개 버킷·샘플 데이터를 준비합니다.
-3. 샘플 이미지는 직접 `public/samples/class-1.jpg`~`class-4.jpg`에 넣습니다. 순서대로 도자기·가죽·꽃다발·캔들 이미지이며 현재 저장소에는 이미지 파일이 포함되어 있지 않습니다.
+3. 샘플 이미지 `public/samples/class-1.jpg`~`class-4.jpg`(순서대로 도자기·가죽·꽃다발·캔들)는 저장소에 포함되어 있어 따로 준비하지 않습니다. 출처는 [샘플 이미지 출처](#샘플-이미지-출처)에 있습니다.
 4. 데모 초기화가 필요하면 같은 SQL 파일 전체를 SQL Editor에서 다시 실행합니다.
 
 **주의: 다시 실행하면 시연 중 만든 예약·클래스·회차를 포함한 기존 DB 데이터를 모두 지우고 다시 만듭니다.** 업로드한 Storage 파일은 초기화 후에도 남습니다.
@@ -179,6 +179,17 @@ A는 도자기, B는 가죽, C는 회차가 없는 꽃다발, D는 비공개 캔
 | BK-DEMO09 | 0009 | B 가죽·7일 후 | cancelled | 취소 상태·자리 복구 |
 | BK-DEMO10 | 0010 | B 가죽·7일 후 | pending | 운영자 승인·거절·회차 취소 |
 | BK-DEMO11 | 0011 | D 비공개 캔들·6일 후 | pending | 비공개 클래스 기존 예약 조회·취소 |
+
+### 샘플 이미지 출처
+
+샘플 이미지는 [Unsplash License](https://unsplash.com/license)로 제공되는 사진을 1200×900px로 잘라 저장소에 넣었습니다.
+
+| 파일 | 클래스 | 사진 |
+| --- | --- | --- |
+| `class-1.jpg` | A 도자기 | [Katja Vogt](https://unsplash.com/photos/two-white-ceramic-mug-CipURjPCXOo) |
+| `class-2.jpg` | B 가죽 | [Joel Lee](https://unsplash.com/photos/-MAUCFjyKBA) |
+| `class-3.jpg` | C 꽃다발 | [Yura Batiushyn](https://unsplash.com/photos/a-bouquet-of-pink-tulips-wrapped-in-brown-paper-ndSBB4GI15k) |
+| `class-4.jpg` | D 캔들 | [Mediamodifier](https://unsplash.com/photos/white-pillar-candle-on-white-fur-textile-G5LVF0EW9CI) |
 
 ## 시연 순서
 
@@ -233,7 +244,7 @@ src/
 ├── lib/                # 순수 규칙·DB 처리·인증·HTTP·시각 표시
 └── proxy.ts            # 운영자 페이지 접근 보호
 supabase/schema.sql     # 테이블·함수·버킷·샘플 데이터
-public/samples/         # 직접 준비하는 고정 샘플 이미지
+public/samples/         # 저장소에 포함한 고정 샘플 이미지
 scripts/hooks/          # TDD·위험 명령·종료 전 검증 가드
 docs/                   # 공개 기획·설계·UI 문서
 phases/                 # 단계별 작업 상태·산출물 요약

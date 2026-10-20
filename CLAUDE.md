@@ -4,7 +4,7 @@
 
 - 기획·정책·규칙 ID(`R-xx`)의 기준: `docs/PLAN.md`
 - 도메인 모델·페이지·REST API·에러 코드·검증 기준: `docs/SPEC.md`
-- PLAN.md·SPEC.md는 로컬 전용 문서다(`.gitignore`). 공개 문서(PRD·ARCHITECTURE·ADR·UI_GUIDE·README)는 두 파일을 링크하지 않고, 두 파일 없이도 읽히게 작성한다. 공개 문서에 상세 설명이 필요하면 ARCHITECTURE.md에 한 번만 쓰고 다른 공개 문서는 요약한다.
+- PLAN.md·SPEC.md는 로컬 전용 문서다(`.gitignore`). 공개 문서(PRD·ARCHITECTURE·ADR·UI_GUIDE·UX_GUIDE·README)는 두 파일을 링크하지 않고, 두 파일 없이도 읽히게 작성한다. 공개 문서에 상세 설명이 필요하면 ARCHITECTURE.md에 한 번만 쓰고 다른 공개 문서는 요약한다.
 - 정책을 바꿀 때는 PLAN.md → SPEC.md 순서로 수정한 뒤 구현한다. 두 문서와 다르게 구현하지 않는다.
 - PLAN.md의 P0만 구현 대상이다. P1(DB 연동·동시 처리 자동 검증)은 요청 없이 추가하지 않는다.
 
