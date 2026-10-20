@@ -24,7 +24,7 @@ describe("CopyButton", () => {
     await user.click(screen.getByRole("button", { name: "예약번호 복사" }));
 
     expect(writeText).toHaveBeenCalledWith("BK-7F3K2A");
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("예약번호를 복사했어요"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("예약번호를 복사했습니다"));
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -41,7 +41,7 @@ describe("CopyButton", () => {
 
     await user.click(screen.getByRole("button", { name: "예약번호 복사" }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("복사하지 못했어요. 직접 선택해 복사해 주세요"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("복사하지 못했습니다. 직접 선택해 복사해 주세요"));
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -54,7 +54,7 @@ describe("CopyButton", () => {
     try {
       await user.click(screen.getByRole("button", { name: "예약번호 복사" }));
 
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("복사하지 못했어요. 직접 선택해 복사해 주세요"));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("복사하지 못했습니다. 직접 선택해 복사해 주세요"));
       expect(toast.success).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: clipboard });

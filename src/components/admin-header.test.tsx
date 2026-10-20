@@ -23,20 +23,21 @@ describe("AdminHeader", () => {
   it.each(["/admin/login", "/admin/login/"])("로그인 경로 %s에서는 로고만 표시한다", (path) => {
     navigation.pathname = path;
     renderHeader();
-    expect(screen.getByRole("link", { name: "공방 예약 관리" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "공방 클래스 예약" })).toBeVisible();
+    expect(screen.getByText("운영자")).toBeVisible();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "로그아웃" })).not.toBeInTheDocument();
   });
 
   it.each([
-    ["/admin", "예약", "클래스"],
-    ["/admin/classes", "클래스", "예약"],
-    ["/admin/classes/class-1", "클래스", "예약"],
+    ["/admin", "예약 관리", "클래스 관리"],
+    ["/admin/classes", "클래스 관리", "예약 관리"],
+    ["/admin/classes/class-1", "클래스 관리", "예약 관리"],
   ])("경로 %s에 맞는 내비에만 aria-current를 표시한다", (path, current, other) => {
     navigation.pathname = path;
     renderHeader();
-    expect(screen.getByRole("link", { name: current })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: other })).not.toHaveAttribute("aria-current");
+    expect(screen.getAllByRole("link", { name: current }).every((link) => link.getAttribute("aria-current") === "page")).toBe(true);
+    expect(screen.getAllByRole("link", { name: other }).every((link) => !link.hasAttribute("aria-current"))).toBe(true);
   });
 
   it("로그아웃 API 성공 후 로그인 화면으로 이동하고 운영자 캐시를 제거한다", async () => {

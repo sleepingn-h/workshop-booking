@@ -284,21 +284,45 @@ describe("Supabase 클라이언트와 에러 처리", () => {
 });
 
 describe("공개 클래스 조회", () => {
-  it("R-52 R-54 공개 클래스의 다음 회차를 구하고 표시할 회차가 없으면 null이다", async () => {
+  it("R-52 R-54 공개 클래스마다 신청 가능한 다음 회차와 남은 자리를, 모두 마감이면 첫 회차를, 없으면 null을 준다", async () => {
+    const fullClass = { ...workshop, id: "10000000-0000-4000-8000-000000000003" };
     const emptyClass = { ...workshop, id: "10000000-0000-4000-8000-000000000002", image_url: null };
-    client.queue("classes", [workshop, emptyClass]);
+    const earlyFullId = "20000000-0000-4000-8000-000000000002";
+    const laterId = "20000000-0000-4000-8000-000000000003";
+    const onlyFullId = "20000000-0000-4000-8000-000000000004";
+    client.queue("classes", [workshop, fullClass, emptyClass]);
     client.queue("sessions", [
-      { ...session, starts_at: "2026-10-22T03:00:00.123Z" },
-      { ...session, starts_at: now.toISOString() },
-      { ...session, starts_at: "2026-10-18T03:00:00.123Z", status: "cancelled" },
+      { ...session, id: laterId, starts_at: "2026-10-22T03:00:00.123Z" },
+      { ...session, id: "20000000-0000-4000-8000-000000000005", starts_at: now.toISOString() },
+      { ...session, id: "20000000-0000-4000-8000-000000000006", starts_at: "2026-10-18T03:00:00.123Z", status: "cancelled" },
+      { ...session, id: earlyFullId, starts_at: "2026-10-19T03:00:00.123Z" },
       session,
+      { ...session, id: onlyFullId, class_id: fullClass.id, starts_at: "2026-10-23T03:00:00.123Z" },
+    ]);
+    client.queue("session_stats", [
+      stats,
+      { ...stats, session_id: earlyFullId, occupied: 6 },
+      { ...stats, session_id: onlyFullId, occupied: 6 },
     ]);
 
     await expect(db.listPublishedClasses()).resolves.toEqual([
-      { id: classId, title: workshop.title, description: workshop.description, imageUrl: workshop.image_url, nextSessionAt: session.starts_at },
-      { id: emptyClass.id, title: workshop.title, description: workshop.description, imageUrl: null, nextSessionAt: null },
+      { id: classId, title: workshop.title, description: workshop.description, imageUrl: workshop.image_url, nextSessionAt: session.starts_at, nextSessionRemaining: 4 },
+      { id: fullClass.id, title: workshop.title, description: workshop.description, imageUrl: workshop.image_url, nextSessionAt: "2026-10-23T03:00:00.123Z", nextSessionRemaining: 0 },
+      { id: emptyClass.id, title: workshop.title, description: workshop.description, imageUrl: null, nextSessionAt: null, nextSessionRemaining: null },
     ]);
     expect(client.queries[0].chain.eq).toHaveBeenCalledWith("is_published", true);
+    expect(client.queries.find(({ table }) => table === "session_stats")?.chain.in)
+      .toHaveBeenCalledWith("session_id", [earlyFullId, sessionId, laterId, onlyFullId]);
+  });
+
+  it("R-54 표시할 회차가 없으면 남은 자리를 조회하지 않는다", async () => {
+    client.queue("classes", [workshop]);
+    client.queue("sessions", [{ ...session, status: "cancelled" }]);
+
+    await expect(db.listPublishedClasses()).resolves.toEqual([
+      expect.objectContaining({ id: classId, nextSessionAt: null, nextSessionRemaining: null }),
+    ]);
+    expect(client.queries.map(({ table }) => table)).toEqual(["classes", "sessions"]);
   });
 
   it("R-52 공개 클래스가 없으면 빈 목록을 반환한다", async () => {
@@ -655,43 +679,65 @@ describe("운영자 카탈로그 입력과 대상 확인", () => {
 });
 
 describe("운영자 클래스 조회와 저장", () => {
-  it("R-52 비공개를 포함해 생성 시각 내림차순으로 조회하고 모든 회차 수를 반환한다", async () => {
+  it("R-17 R-52 R-54 비공개를 포함해 생성 시각 내림차순으로 조회하고 예정 회차 수와 승인 대기 건수를 반환한다", async () => {
     const privateClass = { ...workshop, id: "10000000-0000-4000-8000-000000000002", is_published: false, image_url: null };
+    const at = (id: string, starts_at: string, status = "scheduled") => ({ id, starts_at, status });
+    const sessions = [
+      at(sessionId, session.starts_at),
+      at("20000000-0000-4000-8000-000000000002", now.toISOString()),
+      at("20000000-0000-4000-8000-000000000003", "2026-10-16T03:00:00Z"),
+      at("20000000-0000-4000-8000-000000000004", "2026-10-25T03:00:00Z", "cancelled"),
+    ];
     client.queue("classes", [
-      { ...privateClass, sessions: [{ count: 0 }] },
-      { ...workshop, sessions: [{ count: 3 }] },
+      { ...privateClass, sessions: [] },
+      { ...workshop, sessions },
+    ]);
+    client.queue("bookings", [
+      { session_id: sessionId },
+      { session_id: sessionId },
+      { session_id: "20000000-0000-4000-8000-000000000003" },
     ]);
 
     await expect(db.listAdminClasses()).resolves.toEqual([
-      { id: privateClass.id, title: privateClass.title, isPublished: false, imageUrl: null, sessionCount: 0 },
-      { id: classId, title: workshop.title, isPublished: true, imageUrl: workshop.image_url, sessionCount: 3 },
+      { id: privateClass.id, title: privateClass.title, isPublished: false, imageUrl: null, upcomingSessionCount: 0, pendingCount: 0 },
+      { id: classId, title: workshop.title, isPublished: true, imageUrl: workshop.image_url, upcomingSessionCount: 1, pendingCount: 3 },
     ]);
     expect(client.queries[0].chain.order).toHaveBeenCalledWith("created_at", { ascending: false });
     expect(client.queries[0].chain.eq).not.toHaveBeenCalled();
-    expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("sessions(count)"));
+    expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("sessions(id,starts_at,status)"));
+    expect(client.queries[1].chain.select).toHaveBeenCalledWith("session_id");
+    expect(client.queries[1].chain.eq).toHaveBeenCalledWith("status", "pending");
+    expect(client.queries[1].chain.in).toHaveBeenCalledWith("session_id", sessions.map(({ id }) => id));
   });
 
-  it("R-52 클래스가 없으면 빈 목록이다", async () => {
+  it("R-52 클래스나 회차가 없으면 승인 대기를 조회하지 않는다", async () => {
     client.queue("classes", []);
     await expect(db.listAdminClasses()).resolves.toEqual([]);
-    expect(client.from).toHaveBeenCalledTimes(1);
+    client.queue("classes", [{ ...workshop, sessions: [] }]);
+    await expect(db.listAdminClasses()).resolves.toMatchObject([{ upcomingSessionCount: 0, pendingCount: 0 }]);
+    expect(client.from.mock.calls).toEqual([["classes"], ["classes"]]);
   });
 
-  it("R-01 R-41 R-52 시작·취소 회차도 시작 순서로 표시하고 점유 인원과 전체 이력 수를 구분한다", async () => {
+  it("R-01 R-17 R-41 R-52 시작·취소 회차도 시작 순서로 표시하고 점유 인원·전체 이력 수·승인 대기 건수를 구분한다", async () => {
     const pastSession = { ...session, id: "20000000-0000-4000-8000-000000000002", starts_at: "2026-10-16T03:00:00Z", status: "cancelled" };
     client.queue("classes", { ...workshop, is_published: false });
     client.queue("sessions", [session, pastSession]);
     client.queue("session_stats", [stats, { session_id: pastSession.id, occupied: 0, booking_count: 2 }]);
+    client.queue("bookings", [{ session_id: sessionId }]);
 
     await expect(db.getAdminClass(classId)).resolves.toEqual({
       id: classId, title: workshop.title, description: workshop.description, imageUrl: workshop.image_url, isPublished: false,
       sessions: [
-        { id: pastSession.id, startsAt: pastSession.starts_at, capacity: 6, status: "cancelled", occupied: 0, bookingCount: 2 },
-        { id: sessionId, startsAt: session.starts_at, capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1 },
+        { id: pastSession.id, startsAt: pastSession.starts_at, capacity: 6, status: "cancelled", occupied: 0, bookingCount: 2, pendingCount: 0 },
+        { id: sessionId, startsAt: session.starts_at, capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1, pendingCount: 1 },
       ],
     });
     expect(client.queries[1].chain.eq).toHaveBeenCalledWith("class_id", classId);
     expect(client.queries[1].chain.order).toHaveBeenCalledWith("starts_at", { ascending: true });
+    const pending = client.queries.find(({ table }) => table === "bookings")!.chain;
+    expect(pending.select).toHaveBeenCalledWith("session_id");
+    expect(pending.eq).toHaveBeenCalledWith("status", "pending");
+    expect(pending.in).toHaveBeenCalledWith("session_id", [sessionId, pastSession.id]);
   });
 
   it("R-50 회차가 없는 클래스는 빈 회차 목록을 반환한다", async () => {

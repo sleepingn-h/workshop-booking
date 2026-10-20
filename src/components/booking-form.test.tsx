@@ -25,18 +25,24 @@ const sessions: PublicSession[] = [
 const clients: QueryClient[] = [];
 const apiMock = vi.mocked(apiFetch);
 
-function renderForm(initialSessions = sessions) {
+function renderForm(initialSessions = sessions, contact?: string) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   clients.push(client);
   function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
-  return render(<BookingForm classId="class-1" sessions={initialSessions} />, { wrapper: Wrapper });
+  return render(<BookingForm classId="class-1" sessions={initialSessions} contact={contact} />, { wrapper: Wrapper });
+}
+
+function headcountGroup() {
+  return screen.getByRole("group", { name: "인원" });
 }
 
 async function fillForm(user: ReturnType<typeof userEvent.setup>, headcount = "2") {
   await user.click(screen.getAllByRole("radio")[0]);
-  await user.selectOptions(screen.getByRole("combobox", { name: "인원" }), headcount);
+  for (let count = 1; count < Number(headcount); count += 1) {
+    await user.click(screen.getByRole("button", { name: "인원 늘리기" }));
+  }
   await user.type(screen.getByLabelText("예약자 이름"), " 홍길동 ");
   await user.type(screen.getByLabelText("전화번호"), "010-1234-5678");
 }
@@ -44,7 +50,7 @@ async function fillForm(user: ReturnType<typeof userEvent.setup>, headcount = "2
 function expectInputsPreserved(headcount = "2") {
   expect(screen.getByLabelText("예약자 이름")).toHaveValue(" 홍길동 ");
   expect(screen.getByLabelText("전화번호")).toHaveValue("010-1234-5678");
-  expect(screen.getByRole("combobox", { name: "인원" })).toHaveValue(headcount);
+  expect(within(headcountGroup()).getByText(`${headcount}명`)).toBeVisible();
 }
 
 beforeEach(() => {
@@ -65,7 +71,7 @@ describe("BookingForm", () => {
     expect(within(group).getAllByRole("radio")).toHaveLength(3);
     expect(within(group).getByText("10월 20일 (화)")).toBeVisible();
     expect(within(group).getByText("오전 1:00")).toBeVisible();
-    expect(within(group).getByText("정원 6명")).toBeVisible();
+    expect(within(group).queryByText(/정원/)).not.toBeInTheDocument();
     expect(within(group).getByText("4자리 남음")).toBeVisible();
     expect(within(group).getByText("2자리 남음")).toBeVisible();
     expect(within(group).getByText("마감")).toBeVisible();
@@ -82,24 +88,29 @@ describe("BookingForm", () => {
     expect(full).not.toBeChecked();
   });
 
-  it("R-54: 회차가 없으면 안내만 표시하고 폼 입력을 숨긴다", () => {
-    renderForm([]);
+  it("R-54: 회차가 없으면 안내와 문의처만 표시하고 폼 입력을 숨긴다", () => {
+    renderForm([], "010-0000-9001");
 
     expect(screen.getByText("현재 예약 가능한 회차가 없습니다")).toBeVisible();
+    expect(screen.getByRole("link", { name: "010-0000-9001" })).toHaveAttribute("href", "tel:01000009001");
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "예약 신청하기" })).not.toBeInTheDocument();
   });
 
-  it("R-12: 인원은 1~4명만 선택하고 이름·전화번호에 라벨과 자동완성을 제공한다", () => {
+  it("R-12: 인원은 1~4명만 고르고 이름·전화번호에 라벨과 자동완성을 제공한다", async () => {
+    const user = userEvent.setup();
     renderForm();
 
-    expect(within(screen.getByRole("combobox", { name: "인원" }))
-      .getAllByRole("option").map((option) => option.getAttribute("value")))
-      .toEqual(["1", "2", "3", "4"]);
+    expect(within(headcountGroup()).getByText("1명")).toBeVisible();
+    expect(screen.getByRole("button", { name: "인원 줄이기" })).toBeDisabled();
+    for (let count = 1; count < 4; count += 1) await user.click(screen.getByRole("button", { name: "인원 늘리기" }));
+    expect(within(headcountGroup()).getByText("4명")).toBeVisible();
+    expect(screen.getByRole("button", { name: "인원 늘리기" })).toBeDisabled();
     expect(screen.getByLabelText("예약자 이름")).toHaveAttribute("autocomplete", "name");
     expect(screen.getByLabelText("전화번호")).toHaveAttribute("autocomplete", "tel");
     expect(screen.getByLabelText("전화번호")).toHaveAttribute("inputmode", "tel");
+    expect(screen.getByLabelText("전화번호")).toHaveAccessibleDescription("하이픈 없이 입력해도 됩니다. 결과 조회 때 뒷자리 4자리를 사용합니다.");
   });
 
   it("R-12: 빈 이름·짧은 전화번호는 공유 검증의 필드 오류를 표시하고 요청하지 않는다", async () => {
@@ -112,7 +123,20 @@ describe("BookingForm", () => {
     expect(screen.getByLabelText("예약자 이름")).toHaveAccessibleDescription("예약자 이름을 입력해 주세요.");
     expect(screen.getByLabelText("전화번호")).toHaveAccessibleDescription("전화번호는 숫자 10~11자리로 입력해 주세요.");
     expect(screen.getByLabelText("전화번호")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("예약자 이름")).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  it("R-12: 전화번호는 칸을 벗어날 때 형식을 확인하고, 고치면 오류를 지운다", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("전화번호"), "010-123");
+    await user.tab();
+
+    expect(screen.getByLabelText("전화번호")).toHaveAccessibleDescription("전화번호는 숫자 10~11자리로 입력해 주세요.");
+    await user.type(screen.getByLabelText("전화번호"), "4-5678");
+    expect(screen.getByLabelText("전화번호")).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("예약자 이름")).not.toHaveAttribute("aria-invalid", "true");
   });
 
   it("R-54: 회차를 고르지 않으면 필드 오류를 표시하고 요청하지 않는다", async () => {
@@ -121,28 +145,33 @@ describe("BookingForm", () => {
     await user.click(screen.getByRole("button", { name: "예약 신청하기" }));
 
     expect(screen.getByRole("radiogroup")).toHaveAccessibleDescription("회차를 선택해 주세요.");
+    expect(screen.getAllByRole("radio")[0]).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it("R-11: 남은 자리보다 많은 인원은 제출 전에 필드 오류로 안내한다", async () => {
+  it("R-11: 남은 자리보다 많은 인원은 고르는 즉시 안내하고 제출하면 인원으로 포커스를 옮긴다", async () => {
     const user = userEvent.setup();
     renderForm();
     await fillForm(user, "3");
     await user.click(screen.getAllByRole("radio")[1]);
-    await user.click(screen.getByRole("button", { name: "예약 신청하기" }));
 
-    expect(screen.getByRole("combobox", { name: "인원" }))
-      .toHaveAccessibleDescription("남은 자리보다 많은 인원은 신청할 수 없습니다.");
+    expect(headcountGroup()).toHaveAccessibleDescription("남은 자리보다 많은 인원은 신청할 수 없습니다.");
+    await user.click(screen.getByRole("button", { name: "예약 신청하기" }));
+    expect(screen.getByRole("button", { name: "인원 줄이기" })).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
     expectInputsPreserved("3");
   });
 
-  it("R-10, R-31: 수동 승인 방식과 상태별 취소 기한을 신청 전에 안내한다", () => {
+  it("R-10, R-31: 수동 승인 방식은 회차 목록보다 먼저, 상태별 취소 기한은 신청 버튼 가까이 안내한다", () => {
     renderForm();
 
-    expect(screen.getByText(/신청 후에는 승인 대기 상태이며, 참여 확정이 아닙니다/)).toBeVisible();
-    expect(screen.getByText(/승인 대기는 시작 전까지/)).toBeVisible();
-    expect(screen.getByText(/참여 확정은 시작 24시간 전까지/)).toBeVisible();
+    const approval = screen.getByText(/신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다/);
+    expect(approval).toBeVisible();
+    expect(approval).toHaveTextContent("결과는 예약 조회에서 직접 확인해 주세요.");
+    expect(approval.compareDocumentPosition(screen.getByRole("radiogroup")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const deadline = screen.getByText(/승인 대기는 시작 전까지/);
+    expect(deadline).toHaveTextContent(/참여 확정은 시작 24시간 전까지/);
+    expect(deadline.compareDocumentPosition(screen.getByRole("button", { name: "예약 신청하기" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("신청 중에는 버튼을 비활성화하고 중복 제출을 막는다", async () => {
@@ -184,7 +213,9 @@ describe("BookingForm", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("남은 자리가 부족합니다.");
     expect(router.refresh).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("남은 자리가 바뀌었습니다. 회차와 인원을 다시 확인해 주세요.")).toBeVisible();
+    const changed = screen.getByText("남은 자리가 바뀌었습니다. 회차와 인원을 다시 확인해 주세요.");
+    expect(changed).toBeVisible();
+    expect(changed.compareDocumentPosition(screen.getByRole("radiogroup")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expectInputsPreserved();
     expect(screen.getAllByRole("radio")[0]).toBeChecked();
     expect(screen.getByRole("button", { name: "예약 신청하기" })).toBeEnabled();
@@ -200,6 +231,7 @@ describe("BookingForm", () => {
     await user.click(screen.getByRole("button", { name: "예약 신청하기" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByRole("link", { name: "예약 조회로 이동" })).toHaveAttribute("href", "/bookings/lookup");
     expectInputsPreserved();
     expect(screen.getAllByRole("radio")[0]).toBeChecked();
     expect(router.refresh).not.toHaveBeenCalled();
@@ -231,6 +263,7 @@ describe("BookingForm", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("입력 내용을 확인해 주세요.");
     expect(screen.getByLabelText("전화번호")).toHaveAccessibleDescription("전화번호를 다시 확인해 주세요.");
+    expect(screen.getByLabelText("전화번호")).toHaveFocus();
     expectInputsPreserved();
     await user.clear(screen.getByLabelText("전화번호"));
     await user.type(screen.getByLabelText("전화번호"), "01098765432");
@@ -266,7 +299,7 @@ describe("BookingForm", () => {
 
     expect(screen.getAllByRole("radio")[0]).toBeChecked();
     expectInputsPreserved("3");
-    expect(screen.getByRole("combobox", { name: "인원" })).toHaveAccessibleDescription(/남은 자리/);
+    expect(headcountGroup()).toHaveAccessibleDescription(/남은 자리/);
     expect(apiMock).not.toHaveBeenCalled();
   });
 

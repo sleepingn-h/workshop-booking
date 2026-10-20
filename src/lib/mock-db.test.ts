@@ -77,9 +77,9 @@ describe("목 데이터 모드 플래그", () => {
 describe("고객 클래스 조회", () => {
   it("R-52 R-54 공개 클래스만 삽입 순서로 표시하고 다음 회차를 반환한다", () => {
     expect(db.mockListPublishedClasses(now)).toEqual([
-      expect.objectContaining({ id: potteryId, title: "손으로 빚는 도자기 컵", imageUrl: "/samples/class-1.jpg", nextSessionAt: at(20 * HOUR) }),
-      expect.objectContaining({ id: leatherId, title: "나만의 가죽 카드 지갑", imageUrl: "/samples/class-2.jpg", nextSessionAt: at(7 * DAY) }),
-      expect.objectContaining({ id: flowerId, title: "작은 꽃다발 만들기", imageUrl: "/samples/class-3.jpg", nextSessionAt: null }),
+      expect.objectContaining({ id: potteryId, title: "손으로 빚는 도자기 컵", imageUrl: "/samples/class-1.jpg", nextSessionAt: at(20 * HOUR), nextSessionRemaining: 3 }),
+      expect.objectContaining({ id: leatherId, title: "나만의 가죽 카드 지갑", imageUrl: "/samples/class-2.jpg", nextSessionAt: at(7 * DAY), nextSessionRemaining: 5 }),
+      expect.objectContaining({ id: flowerId, title: "작은 꽃다발 만들기", imageUrl: "/samples/class-3.jpg", nextSessionAt: null, nextSessionRemaining: null }),
     ]);
   });
 
@@ -258,26 +258,30 @@ describe("운영자 예약 목록", () => {
 });
 
 describe("운영자 클래스 조회", () => {
-  it("R-52 비공개 포함 4개 클래스를 최신 순으로 반환하고 모든 상태의 회차를 센다", () => {
+  it("R-17 R-52 R-54 비공개 포함 4개 클래스를 최신 순으로 반환하고 예정 회차와 승인 대기를 센다", () => {
     expect(db.mockListAdminClasses(now)).toEqual([
-      { id: candleId, title: "향을 고르는 캔들 클래스", imageUrl: "/samples/class-4.jpg", isPublished: false, sessionCount: 1 },
-      { id: flowerId, title: "작은 꽃다발 만들기", imageUrl: "/samples/class-3.jpg", isPublished: true, sessionCount: 0 },
-      { id: leatherId, title: "나만의 가죽 카드 지갑", imageUrl: "/samples/class-2.jpg", isPublished: true, sessionCount: 1 },
-      { id: potteryId, title: "손으로 빚는 도자기 컵", imageUrl: "/samples/class-1.jpg", isPublished: true, sessionCount: 5 },
+      { id: candleId, title: "향을 고르는 캔들 클래스", imageUrl: "/samples/class-4.jpg", isPublished: false, upcomingSessionCount: 1, pendingCount: 1 },
+      { id: flowerId, title: "작은 꽃다발 만들기", imageUrl: "/samples/class-3.jpg", isPublished: true, upcomingSessionCount: 0, pendingCount: 0 },
+      { id: leatherId, title: "나만의 가죽 카드 지갑", imageUrl: "/samples/class-2.jpg", isPublished: true, upcomingSessionCount: 1, pendingCount: 1 },
+      { id: potteryId, title: "손으로 빚는 도자기 컵", imageUrl: "/samples/class-1.jpg", isPublished: true, upcomingSessionCount: 3, pendingCount: 3 },
     ]);
   });
 
-  it("R-01 R-41 시작·취소 회차를 포함하고 점유 인원과 전체 예약 이력을 구분한다", () => {
+  it("R-54 예정 회차는 요청 시각 기준으로 시작 전 회차만 센다", () => {
+    expect(db.mockListAdminClasses(new Date(now.getTime() + 21 * HOUR)).at(-1)).toMatchObject({ upcomingSessionCount: 2, pendingCount: 3 });
+  });
+
+  it("R-01 R-17 R-41 시작·취소 회차를 포함하고 점유 인원·전체 예약 이력·승인 대기를 구분한다", () => {
     expect(db.mockGetAdminClass(potteryId, now).sessions).toEqual([
-      { id: sessionId(4), startsAt: at(-2 * HOUR), capacity: 4, status: "scheduled", occupied: 1, bookingCount: 1 },
-      { id: sessionId(3), startsAt: at(20 * HOUR), capacity: 4, status: "scheduled", occupied: 1, bookingCount: 1 },
-      { id: sessionId(1), startsAt: at(4 * DAY), capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1 },
-      { id: sessionId(2), startsAt: at(5 * DAY), capacity: 4, status: "scheduled", occupied: 4, bookingCount: 2 },
-      { id: sessionId(5), startsAt: at(6 * DAY), capacity: 4, status: "cancelled", occupied: 0, bookingCount: 2 },
+      { id: sessionId(4), startsAt: at(-2 * HOUR), capacity: 4, status: "scheduled", occupied: 1, bookingCount: 1, pendingCount: 1 },
+      { id: sessionId(3), startsAt: at(20 * HOUR), capacity: 4, status: "scheduled", occupied: 1, bookingCount: 1, pendingCount: 0 },
+      { id: sessionId(1), startsAt: at(4 * DAY), capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1, pendingCount: 1 },
+      { id: sessionId(2), startsAt: at(5 * DAY), capacity: 4, status: "scheduled", occupied: 4, bookingCount: 2, pendingCount: 1 },
+      { id: sessionId(5), startsAt: at(6 * DAY), capacity: 4, status: "cancelled", occupied: 0, bookingCount: 2, pendingCount: 0 },
     ]);
-    expect(db.mockGetAdminClass(leatherId, now).sessions[0]).toMatchObject({ occupied: 1, bookingCount: 3 });
+    expect(db.mockGetAdminClass(leatherId, now).sessions[0]).toMatchObject({ occupied: 1, bookingCount: 3, pendingCount: 1 });
     expect(db.mockGetAdminClass(flowerId, now).sessions).toEqual([]);
-    expect(db.mockGetAdminClass(candleId, now)).toMatchObject({ isPublished: false, sessions: [{ occupied: 1, bookingCount: 1 }] });
+    expect(db.mockGetAdminClass(candleId, now)).toMatchObject({ isPublished: false, sessions: [{ occupied: 1, bookingCount: 1, pendingCount: 1 }] });
   });
 
   it.each(["invalid-id", "10000000-0000-4000-8000-999999999999"])(

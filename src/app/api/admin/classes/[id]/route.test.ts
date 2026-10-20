@@ -111,6 +111,7 @@ describe("/api/admin/classes/[id]", () => {
         status: "scheduled",
         occupied: 2,
         bookingCount: 1,
+        pendingCount: 1,
       }],
     };
     getAdminClassMock.mockResolvedValue(result);

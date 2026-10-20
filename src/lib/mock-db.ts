@@ -4,6 +4,7 @@ import {
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
+  nextBookableSession,
   normalizePhone,
   occupiedSeats,
   remainingSeats,
@@ -23,7 +24,7 @@ import {
 } from "./types";
 
 type SampleClass = Readonly<Omit<AdminClassDetail, "sessions">>;
-type SampleSession = Readonly<Omit<AdminSession, "occupied" | "bookingCount"> & { classId: string }>;
+type SampleSession = Readonly<Omit<AdminSession, "occupied" | "bookingCount" | "pendingCount"> & { classId: string }>;
 type SampleBooking = Readonly<Omit<AdminBooking, "classTitle" | "sessionStartsAt" | "sessionStatus">>;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -186,12 +187,25 @@ export function isMockDb(): boolean {
 }
 
 export function mockListPublishedClasses(now: Date): ClassSummary[] {
-  return CLASSES.filter((workshop) => workshop.isPublished).map((workshop) => ({
-    id: workshop.id,
-    title: workshop.title,
-    description: workshop.description,
-    imageUrl: workshop.imageUrl,
-    nextSessionAt: visibleSessions(workshop.id, now)[0]?.startsAt ?? null,
+  return CLASSES.filter((workshop) => workshop.isPublished).map((workshop) => {
+    const next = nextBookableSession(publicSessions(workshop.id, now));
+    return {
+      id: workshop.id,
+      title: workshop.title,
+      description: workshop.description,
+      imageUrl: workshop.imageUrl,
+      nextSessionAt: next?.startsAt ?? null,
+      nextSessionRemaining: next?.remaining ?? null,
+    };
+  });
+}
+
+function publicSessions(id: string, now: Date): ClassDetail["sessions"] {
+  return visibleSessions(id, now).map((session) => ({
+    id: session.id,
+    startsAt: session.startsAt,
+    capacity: session.capacity,
+    remaining: remainingSeats(session.capacity, occupiedSeats(bookingsForSession(session.id))),
   }));
 }
 
@@ -204,12 +218,7 @@ export function mockGetPublishedClass(id: string, now: Date): ClassDetail | null
     title: workshop.title,
     description: workshop.description,
     imageUrl: workshop.imageUrl,
-    sessions: visibleSessions(id, now).map((session) => ({
-      id: session.id,
-      startsAt: session.startsAt,
-      capacity: session.capacity,
-      remaining: remainingSeats(session.capacity, occupiedSeats(bookingsForSession(session.id))),
-    })),
+    sessions: publicSessions(id, now),
   };
 }
 
@@ -278,14 +287,18 @@ export function mockListAdminBookings(
   };
 }
 
+function pendingCount(bookings: SampleBooking[]): number {
+  return bookings.filter((booking) => booking.status === "pending").length;
+}
+
 export function mockListAdminClasses(now: Date): AdminClassSummary[] {
-  void now;
   return [...CLASSES].reverse().map((workshop) => ({
     id: workshop.id,
     title: workshop.title,
     isPublished: workshop.isPublished,
     imageUrl: workshop.imageUrl,
-    sessionCount: sessionsForClass(workshop.id).length,
+    upcomingSessionCount: visibleSessions(workshop.id, now).length,
+    pendingCount: pendingCount(sessionsForClass(workshop.id).flatMap((session) => bookingsForSession(session.id))),
   }));
 }
 
@@ -305,6 +318,7 @@ export function mockGetAdminClass(id: string, now: Date): AdminClassDetail {
         status: session.status,
         occupied: occupiedSeats(bookings),
         bookingCount: bookings.length,
+        pendingCount: pendingCount(bookings),
       };
     }),
   };

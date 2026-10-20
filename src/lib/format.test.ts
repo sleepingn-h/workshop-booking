@@ -4,8 +4,11 @@ import {
   formatKstDate,
   formatKstDateTime,
   formatKstTime,
+  formatPhone,
+  formatStartsIn,
   isoToKstInput,
   kstInputToIso,
+  parseClassInfo,
 } from "./format";
 
 describe("한국 시각 표시", () => {
@@ -92,5 +95,77 @@ describe("한국 시각 datetime-local 변환", () => {
     "2025-10-18T14:60",
   ])("잘못된 한국 시각 입력 %s는 빈 문자열을 반환한다", (value) => {
     expect(kstInputToIso(value)).toBe("");
+  });
+});
+
+describe("R-53 클래스 설명의 안내 항목", () => {
+  const description = "장소: 가상 도자기 공방, 공방로 1\n소요 시간: 2시간\n비용·결제 방법: 1인 45,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9001";
+
+  it("R-53: '라벨: 값' 줄을 정해진 순서의 안내 항목으로 나누고 나머지는 본문으로 남긴다", () => {
+    expect(parseClassInfo(`물레로 컵을 만들어요.\n\n${description}\n완성품은 3주 뒤에 찾아가요.`)).toEqual({
+      facts: [
+        { key: "place", label: "장소", value: "가상 도자기 공방, 공방로 1" },
+        { key: "duration", label: "소요 시간", value: "2시간" },
+        { key: "price", label: "비용·결제 방법", value: "1인 45,000원, 현장 결제" },
+        { key: "materials", label: "준비물", value: "없음" },
+        { key: "contact", label: "문의처", value: "010-0000-9001" },
+      ],
+      body: "물레로 컵을 만들어요.\n\n완성품은 3주 뒤에 찾아가요.",
+    });
+  });
+
+  it("R-53: 표기가 조금 달라도 같은 항목으로 읽고, 처음 나온 값만 쓴다", () => {
+    const parsed = parseClassInfo("문의처 ： 02-123-4567\n비용: 무료\n비용 및 결제 방법: 현장 결제\n소요시간: 90분");
+
+    expect(parsed.facts).toEqual([
+      { key: "duration", label: "소요 시간", value: "90분" },
+      { key: "price", label: "비용·결제 방법", value: "무료" },
+      { key: "contact", label: "문의처", value: "02-123-4567" },
+    ]);
+    expect(parsed.body).toBe("비용 및 결제 방법: 현장 결제");
+  });
+
+  it("R-53: 안내 항목이 없거나 값이 비면 설명 전체를 본문으로 둔다", () => {
+    expect(parseClassInfo("  자유롭게 쓴 설명입니다.\n장소:  ")).toEqual({
+      facts: [],
+      body: "자유롭게 쓴 설명입니다.\n장소:",
+    });
+  });
+});
+
+describe("전화번호 표시", () => {
+  it.each([
+    ["01012345678", "010-1234-5678"],
+    ["0212345678", "02-1234-5678"],
+    ["021234567", "02-123-4567"],
+    ["0311234567", "031-123-4567"],
+    ["010-1234-5678", "010-1234-5678"],
+    ["12345", "12345"],
+  ])("%s를 %s로 하이픈을 넣어 표시한다", (value, expected) => {
+    expect(formatPhone(value)).toBe(expected);
+  });
+});
+
+describe("시작까지 남은 시간 표시", () => {
+  const now = new Date("2026-10-19T00:00:00Z");
+  const after = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
+
+  it.each([
+    [0.2, "1분 후 시작"],
+    [45, "45분 후 시작"],
+    [59.4, "59분 후 시작"],
+    [60, "1시간 후 시작"],
+    [4 * 60 + 20, "4시간 후 시작"],
+    [47 * 60 + 29, "47시간 후 시작"],
+  ])("고정한 now에서 %s분 뒤 시작은 %s로 표시한다", (minutes, expected) => {
+    expect(formatStartsIn(after(minutes), now)).toBe(expected);
+  });
+
+  it.each([-1, 0, 48 * 60, 72 * 60])("고정한 now에서 %s분 뒤(시작했거나 이틀 이상 남음)는 표시하지 않는다", (minutes) => {
+    expect(formatStartsIn(after(minutes), now)).toBeNull();
+  });
+
+  it("잘못된 시각은 표시하지 않는다", () => {
+    expect(formatStartsIn("invalid", now)).toBeNull();
   });
 });

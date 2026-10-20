@@ -73,7 +73,8 @@ describe("/api/admin/classes", () => {
       title: "도자기 클래스",
       imageUrl: null,
       isPublished,
-      sessionCount: 2,
+      upcomingSessionCount: 2,
+      pendingCount: 1,
     }));
     listAdminClassesMock.mockResolvedValue(classes);
 

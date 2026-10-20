@@ -126,7 +126,9 @@ export type ClassSummary = {
   title: string;
   description: string;
   imageUrl: string | null;
+  // 신청 가능한 다음 회차(모두 마감이면 첫 회차)와 그 남은 자리. 표시할 회차가 없으면 둘 다 null이다.
   nextSessionAt: string | null;
+  nextSessionRemaining: number | null;
 };
 
 export type ClassDetail = {
@@ -179,7 +181,9 @@ export type AdminClassSummary = {
   title: string;
   isPublished: boolean;
   imageUrl: string | null;
-  sessionCount: number;
+  // 시작 전이며 취소되지 않은 회차 수와, 모든 회차의 승인 대기 예약 건수다.
+  upcomingSessionCount: number;
+  pendingCount: number;
 };
 
 export type AdminSession = {
@@ -189,6 +193,7 @@ export type AdminSession = {
   status: SessionStatus;
   occupied: number;
   bookingCount: number;
+  pendingCount: number;
 };
 
 export type AdminClassDetail = {

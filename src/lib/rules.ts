@@ -42,13 +42,24 @@ function validCapacity(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
 
-function futureStartsAt(value: unknown, now: Date): Date | null {
+const STARTS_AT_REQUIRED = "시작 날짜와 시각을 입력해 주세요.";
+const STARTS_AT_NOT_FUTURE = "지금보다 뒤의 시작 시각을 입력해 주세요.";
+
+// 형식이 틀린 값과 지난 시각을 구분해, 운영자에게 구현 용어 없이 다음 행동을 안내한다.
+function futureStartsAt(value: unknown, now: Date): { startsAt: Date } | { error: string } {
+  const startsAt = parseStartsAt(value);
+  if (!startsAt) return { error: STARTS_AT_REQUIRED };
+  if (startsAt.getTime() <= now.getTime()) return { error: STARTS_AT_NOT_FUTURE };
+  return { startsAt };
+}
+
+function parseStartsAt(value: unknown): Date | null {
   if (typeof value !== "string") return null;
   const parts = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
   if (!parts) return null;
 
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime()) || date.getTime() <= now.getTime()) return null;
+  if (!Number.isFinite(date.getTime())) return null;
 
   const offset = parts[5];
   const offsetMinutes = offset === "Z"
@@ -160,6 +171,11 @@ export function isVisibleSession(
   return session.status === "scheduled" && now.getTime() < session.startsAt.getTime();
 }
 
+// 시작 순으로 정렬한 공개 회차에서 목록에 보여줄 다음 회차를 고른다.
+export function nextBookableSession<T extends { remaining: number }>(sessions: readonly T[]): T | null {
+  return sessions.find((session) => session.remaining > 0) ?? sessions[0] ?? null;
+}
+
 export function validateClassInput(input: unknown): Validated<ClassInput, keyof ClassInput> {
   const data = inputRecord(input);
   const title = trimmedString(data.title);
@@ -205,10 +221,10 @@ export function validateSessionInput(
   const startsAt = futureStartsAt(data.startsAt, now);
   const fieldErrors: FieldErrors<keyof SessionInput> = {};
 
-  if (!startsAt) fieldErrors.startsAt = "오프셋이 포함된 미래 시작 시각을 입력해 주세요.";
+  if ("error" in startsAt) fieldErrors.startsAt = startsAt.error;
   if (!validCapacity(data.capacity)) fieldErrors.capacity = "정원은 1 이상의 정수로 입력해 주세요.";
-  if (!startsAt || !validCapacity(data.capacity)) return { ok: false, code: "VALIDATION_ERROR", fieldErrors };
-  return { ok: true, value: { startsAt, capacity: data.capacity } };
+  if ("error" in startsAt || !validCapacity(data.capacity)) return { ok: false, code: "VALIDATION_ERROR", fieldErrors };
+  return { ok: true, value: { startsAt: startsAt.startsAt, capacity: data.capacity } };
 }
 
 export function validateSessionPatch(
@@ -221,8 +237,8 @@ export function validateSessionPatch(
 
   if ("startsAt" in data) {
     const startsAt = futureStartsAt(data.startsAt, now);
-    if (!startsAt) fieldErrors.startsAt = "오프셋이 포함된 미래 시작 시각을 입력해 주세요.";
-    else value.startsAt = startsAt;
+    if ("error" in startsAt) fieldErrors.startsAt = startsAt.error;
+    else value.startsAt = startsAt.startsAt;
   }
   if ("capacity" in data) {
     if (!validCapacity(data.capacity)) fieldErrors.capacity = "정원은 1 이상의 정수로 입력해 주세요.";

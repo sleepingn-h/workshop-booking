@@ -3,7 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { CircleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent, type JSX } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ export function AdminLoginForm(): JSX.Element {
   const prefix = useId();
   const [password, setPassword] = useState("");
   const [fieldError, setFieldError] = useState("");
+  const passwordRef = useRef<HTMLInputElement>(null);
   const mutation = useMutation({
     mutationFn: (password: string) => apiFetch("/api/admin/login", { method: "POST", json: { password } }),
     onSuccess: () => {
@@ -25,12 +26,18 @@ export function AdminLoginForm(): JSX.Element {
     },
   });
 
+  // 실패하면 비활성이 풀린 뒤 비밀번호 칸으로 돌아가 다시 입력하게 한다.
+  useEffect(() => {
+    if (mutation.isError) passwordRef.current?.focus();
+  }, [mutation.isError]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (mutation.isPending) return;
     mutation.reset();
     if (!password) {
       setFieldError("비밀번호를 입력해 주세요.");
+      passwordRef.current?.focus();
       return;
     }
     setFieldError("");
@@ -42,6 +49,7 @@ export function AdminLoginForm(): JSX.Element {
       <div className="flex min-w-0 flex-col gap-1.5">
         <Label htmlFor={`${prefix}-password`} className="text-sm font-semibold text-[var(--text-strong)]">비밀번호</Label>
         <Input
+          ref={passwordRef}
           id={`${prefix}-password`}
           name="password"
           type="password"

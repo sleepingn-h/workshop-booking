@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +28,7 @@ describe("AdminLoginForm", () => {
     expect(screen.getByLabelText("비밀번호")).toHaveAttribute("type", "password");
     await user.click(screen.getByRole("button", { name: "로그인" }));
     expect(screen.getByLabelText("비밀번호")).toHaveAccessibleDescription("비밀번호를 입력해 주세요.");
+    expect(screen.getByLabelText("비밀번호")).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
   });
 
@@ -49,6 +50,7 @@ describe("AdminLoginForm", () => {
     await user.click(screen.getByRole("button", { name: "로그인" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("비밀번호가 올바르지 않습니다");
     expect(screen.getByLabelText("비밀번호")).toHaveValue("wrong");
+    await waitFor(() => expect(screen.getByLabelText("비밀번호")).toHaveFocus());
     expect(router.replace).not.toHaveBeenCalled();
   });
 

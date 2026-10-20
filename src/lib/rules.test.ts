@@ -15,6 +15,7 @@ import {
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
+  nextBookableSession,
   normalizePhone,
   occupiedSeats,
   remainingSeats,
@@ -375,6 +376,16 @@ describe("공개 회차", () => {
     expect(isVisibleSession(session, new Date(startsAt.getTime() + 1))).toBe(false);
     expect(isVisibleSession({ ...session, status: "cancelled" }, now)).toBe(false);
   });
+
+  it("R-54 목록의 다음 회차는 시작 순으로 처음 남은 자리가 있는 회차이고, 모두 마감이면 첫 회차, 없으면 null이다", () => {
+    const full = { id: "full", remaining: 0 };
+    const open = { id: "open", remaining: 2 };
+    const later = { id: "later", remaining: 5 };
+
+    expect(nextBookableSession([full, open, later])).toBe(open);
+    expect(nextBookableSession([full, { ...full, id: "full-2" }])).toBe(full);
+    expect(nextBookableSession([])).toBeNull();
+  });
 });
 
 describe("클래스 입력", () => {
@@ -471,6 +482,20 @@ describe("회차 입력", () => {
     for (const validate of [validateSessionInput, validateSessionPatch]) {
       expect(validate({ ...sessionInput, capacity }, now)).toEqual({
         ok: false, code: "VALIDATION_ERROR", fieldErrors: { capacity: expect.stringMatching(/[가-힣]/) },
+      });
+    }
+  });
+
+  it.each([
+    ["", "시작 날짜와 시각을 입력해 주세요."],
+    ["2026-10-21T14:00", "시작 날짜와 시각을 입력해 주세요."],
+    ["2027-02-30T14:00:00Z", "시작 날짜와 시각을 입력해 주세요."],
+    ["2026-10-18T14:00:00+09:00", "지금보다 뒤의 시작 시각을 입력해 주세요."],
+    ["2026-10-17T14:00:00+09:00", "지금보다 뒤의 시작 시각을 입력해 주세요."],
+  ])("R-46 시작 시각 %j의 거부 사유를 구현 용어 없이 다음 행동으로 안내한다", (value, message) => {
+    for (const validate of [validateSessionInput, validateSessionPatch]) {
+      expect(validate({ ...sessionInput, startsAt: value }, now)).toEqual({
+        ok: false, code: "VALIDATION_ERROR", fieldErrors: { startsAt: message },
       });
     }
   });

@@ -16,9 +16,9 @@ export function CopyButton({
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("예약번호를 복사했어요");
+      toast.success("예약번호를 복사했습니다");
     } catch {
-      toast.error("복사하지 못했어요. 직접 선택해 복사해 주세요");
+      toast.error("복사하지 못했습니다. 직접 선택해 복사해 주세요");
     }
   }
 

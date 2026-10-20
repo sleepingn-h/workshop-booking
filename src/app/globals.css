@@ -88,14 +88,17 @@
   --status-danger-bg: #fde4e8;
   --status-neutral: #3a43a3;
   --status-neutral-bg: #efeff1;
-  --badge-pending-bg: var(--color-green);
-  --badge-pending-text: var(--text-on-green);
-  --badge-confirmed-bg: var(--color-magenta);
-  --badge-confirmed-text: var(--text-on-ink);
-  --badge-rejected-bg: #3D1D45;
+  --badge-pending-bg: var(--color-magenta);
+  --badge-pending-text: var(--text-on-ink);
+  --badge-confirmed-bg: var(--color-green);
+  --badge-confirmed-text: var(--text-strong);
+  --badge-rejected-bg: var(--status-danger-bg);
   --badge-rejected-text: var(--status-danger);
-  --badge-cancelled-bg: #4A4E72;
-  --badge-cancelled-text: var(--text-disabled);
+  --badge-cancelled-bg: var(--surface-sunk);
+  --badge-cancelled-text: #3b3f6b;
+  --switch-off: #d6d8ee;
+  --shadow-tab: 0 2px 10px rgba(69, 42, 124, 0.12);
+  --shadow-switch-thumb: 0 2px 6px rgba(10, 13, 58, 0.2);
 
   /* 반경과 그림자 */
   --radius-button-sm: 6px;

@@ -23,6 +23,7 @@ import {
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
+  nextBookableSession,
   remainingSeats,
   validateBookingInput,
   validateClassInput,
@@ -75,7 +76,7 @@ type BookingRow = {
 
 type SessionStatsRow = { session_id: string; occupied: number };
 type AdminSessionStatsRow = SessionStatsRow & { booking_count: number };
-type AdminClassRow = ClassRow & { sessions: { count: number }[] };
+type AdminClassRow = ClassRow & { sessions: Pick<SessionRow, "id" | "starts_at" | "status">[] };
 type AdminBookingRow = BookingRow & {
   customer_name: string;
   class_title: string;
@@ -206,13 +207,36 @@ export async function listPublishedClasses(): Promise<ClassSummary[]> {
   if (sessionsError) throw toAppError(sessionsError);
 
   const visible = visibleSessions(sessions ?? [], now);
-  return classes.map((row) => ({
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    imageUrl: row.image_url,
-    nextSessionAt: visible.find((session) => session.class_id === row.id)?.starts_at ?? null,
-  }));
+  const occupied = await readOccupied(visible.map((row) => row.id));
+  return classes.map((row) => {
+    const next = nextBookableSession(visible
+      .filter((session) => session.class_id === row.id)
+      .map((session) => ({
+        startsAt: session.starts_at,
+        remaining: remainingSeats(session.capacity, occupied.get(session.id) ?? 0),
+      })));
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      imageUrl: row.image_url,
+      nextSessionAt: next?.startsAt ?? null,
+      nextSessionRemaining: next?.remaining ?? null,
+    };
+  });
+}
+
+async function readOccupied(sessionIds: string[]): Promise<Map<string, number>> {
+  const occupied = new Map<string, number>();
+  if (!sessionIds.length) return occupied;
+  const { data: stats, error } = await getClient()
+    .from("session_stats")
+    .select("session_id,occupied")
+    .in("session_id", sessionIds)
+    .returns<SessionStatsRow[]>();
+  if (error) throw toAppError(error);
+  for (const row of stats ?? []) occupied.set(row.session_id, row.occupied);
+  return occupied;
 }
 
 export async function getPublishedClass(id: string): Promise<ClassDetail | null> {
@@ -232,16 +256,7 @@ export async function getPublishedClass(id: string): Promise<ClassDetail | null>
   if (error) throw toAppError(error);
 
   const visible = visibleSessions(sessions ?? [], now);
-  const occupied = new Map<string, number>();
-  if (visible.length) {
-    const { data: stats, error: statsError } = await getClient()
-      .from("session_stats")
-      .select("session_id,occupied")
-      .in("session_id", visible.map((row) => row.id))
-      .returns<SessionStatsRow[]>();
-    if (statsError) throw toAppError(statsError);
-    for (const row of stats ?? []) occupied.set(row.session_id, row.occupied);
-  }
+  const occupied = await readOccupied(visible.map((row) => row.id));
 
   return {
     id: workshop.id,
@@ -428,6 +443,21 @@ async function readSessionStats(id: string): Promise<AdminSessionStatsRow> {
   return data;
 }
 
+// 승인 대기는 처리할 일을 알리는 건수라 회차의 시작·취소 여부와 관계없이 센다.
+async function countPendingBySession(sessionIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (sessionIds.length === 0) return counts;
+  const { data, error } = await getClient()
+    .from("bookings")
+    .select("session_id")
+    .eq("status", "pending")
+    .in("session_id", sessionIds)
+    .returns<{ session_id: string }[]>();
+  if (error) throw toAppError(error);
+  for (const row of data ?? []) counts.set(row.session_id, (counts.get(row.session_id) ?? 0) + 1);
+  return counts;
+}
+
 async function removeImageBestEffort(path: string): Promise<void> {
   try {
     const { error } = await getClient().storage.from("class-images").remove([path]);
@@ -443,17 +473,22 @@ export async function listAdminClasses(): Promise<AdminClassSummary[]> {
   if (isMockDb()) return mockListAdminClasses(now);
   const { data, error } = await getClient()
     .from("classes")
-    .select(`${CLASS_COLUMNS},sessions(count)`)
+    .select(`${CLASS_COLUMNS},sessions(id,starts_at,status)`)
     .order("created_at", { ascending: false })
     .returns<AdminClassRow[]>();
   if (error) throw toAppError(error);
+  const rows = data ?? [];
+  const pendingBySession = await countPendingBySession(rows.flatMap((row) => row.sessions.map(({ id }) => id)));
 
-  return (data ?? []).map((row) => ({
+  return rows.map((row) => ({
     id: row.id,
     title: row.title,
     isPublished: row.is_published,
     imageUrl: row.image_url,
-    sessionCount: row.sessions[0]?.count ?? 0,
+    upcomingSessionCount: row.sessions
+      .filter((session) => isVisibleSession({ status: session.status, startsAt: new Date(session.starts_at) }, now))
+      .length,
+    pendingCount: row.sessions.reduce((sum, session) => sum + (pendingBySession.get(session.id) ?? 0), 0),
   }));
 }
 
@@ -482,6 +517,7 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
     if (statsError) throw toAppError(statsError);
     for (const row of stats ?? []) statsBySession.set(row.session_id, row);
   }
+  const pendingBySession = await countPendingBySession((sessions ?? []).map((row) => row.id));
 
   return {
     id: workshop.id,
@@ -498,6 +534,7 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
         status: row.status,
         occupied: statsBySession.get(row.id)?.occupied ?? 0,
         bookingCount: statsBySession.get(row.id)?.booking_count ?? 0,
+        pendingCount: pendingBySession.get(row.id) ?? 0,
       })),
   };
 }

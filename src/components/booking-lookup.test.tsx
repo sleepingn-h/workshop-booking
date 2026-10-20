@@ -82,6 +82,7 @@ describe("BookingLookup", () => {
     expect(screen.getByLabelText("전화번호 뒷자리 4자리"))
       .toHaveAccessibleDescription("전화번호 뒷자리 숫자 4자리를 입력해 주세요.");
     expect(screen.getByLabelText("전화번호 뒷자리 4자리")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("전화번호 뒷자리 4자리")).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
   });
 
@@ -91,6 +92,7 @@ describe("BookingLookup", () => {
     await submitLookup(user, "");
 
     expect(screen.getByLabelText("예약번호")).toHaveAccessibleDescription("예약번호를 입력해 주세요.");
+    expect(screen.getByLabelText("예약번호")).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
   });
 
@@ -126,8 +128,9 @@ describe("BookingLookup", () => {
     renderLookup();
     await submitLookup(user);
 
-    expect(await screen.findByRole("alert"))
-      .toHaveTextContent("예약번호 또는 전화번호 뒷자리를 다시 확인해 주세요");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("예약번호 또는 전화번호 뒷자리를 다시 확인해 주세요");
+    expect(alert.nextElementSibling).toHaveTextContent("예약번호를 분실하셨나요? 공방에 예약자 이름과 전체 전화번호로 문의해 주세요.");
     expect(screen.queryByText("전화번호가 틀렸습니다")).not.toBeInTheDocument();
     expect(screen.queryByText(booking.class.title)).not.toBeInTheDocument();
     expect(screen.getByLabelText("예약번호")).toHaveValue(booking.code);
@@ -140,7 +143,7 @@ describe("BookingLookup", () => {
     renderLookup();
     await submitLookup(user);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("네트워크 연결을 확인해 주세요.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("예약을 불러오지 못했습니다. 네트워크 연결을 확인해 주세요.");
     await user.click(screen.getByRole("button", { name: "재시도" }));
     expect(await screen.findByText(booking.class.title)).toBeVisible();
     expect(apiMock).toHaveBeenCalledTimes(2);
@@ -165,9 +168,10 @@ describe("BookingLookup", () => {
     expect(screen.getByText("10월 20일 (화) 오전 1:00")).toBeVisible();
     expect(screen.getByText(/10월 19일 \(월\) 오전 1:00/)).toBeVisible();
     expect(screen.getByText("2명")).toBeVisible();
-    expect(screen.getByText(/문의처: 02-123-4567/)).toHaveClass("whitespace-pre-line");
+    expect(screen.getByText("서울 공방")).toBeVisible();
+    expect(screen.getByRole("link", { name: "02-123-4567" })).toHaveAttribute("href", "tel:021234567");
     expect(screen.getByText(/한국 시각 기준/)).toBeVisible();
-    expect(screen.getByText(/직접 취소 가능/)).toBeVisible();
+    expect(screen.getByText(/직접 취소 기한/)).toBeVisible();
     expect(screen.getByText(/정확히 24시간 전도 포함/)).toBeVisible();
   });
 
@@ -187,9 +191,11 @@ describe("BookingLookup", () => {
     renderLookup();
     await submitLookup(user);
 
-    expect(await screen.findByText("참여 미확정 — 공방에 문의해 주세요")).toBeVisible();
+    const unconfirmed = await screen.findByText("참여 미확정 — 공방에 문의해 주세요");
+    expect(unconfirmed).toBeVisible();
+    expect(unconfirmed.compareDocumentPosition(screen.getByText("승인 대기")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText(/직접 취소할 수 있는 기한이 지났습니다/)).toBeVisible();
-    expect(screen.queryByRole("button", { name: "예약 취소" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "예약 취소" })).toBeDisabled();
   });
 
   it("R-31, R-32: 취소 불가인 확정 예약에는 취소 버튼 없이 기한 경과·공방 문의를 안내한다", async () => {
@@ -198,8 +204,9 @@ describe("BookingLookup", () => {
     renderLookup();
     await submitLookup(user);
 
-    expect(await screen.findByText(/직접 취소할 수 있는 기한이 지났습니다.*공방에 문의해 주세요/)).toBeVisible();
-    expect(screen.queryByRole("button", { name: "예약 취소" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/직접 취소할 수 있는 기한이 지났습니다.*공방에 문의해 주세요.*문의만으로 취소가 완료되지는 않습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "예약 취소" })).toBeDisabled();
+    expect(screen.getAllByRole("link", { name: "02-123-4567" }).length).toBeGreaterThan(0);
   });
 
   it("R-21, R-42: 취소된 회차와 최종 상태 예약을 조회하되 취소 버튼이나 기한 경과 안내를 표시하지 않는다", async () => {
@@ -215,6 +222,19 @@ describe("BookingLookup", () => {
     expect(screen.getByText("취소됨")).toBeVisible();
     expect(screen.queryByRole("button", { name: "예약 취소" })).not.toBeInTheDocument();
     expect(screen.queryByText(/기한이 지났습니다/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "다른 회차 신청하기" })).toHaveAttribute("href", "/");
+  });
+
+  it("R-33: 다시 조회는 상태 가까이, 예약 취소는 상세 아래에 떨어뜨려 둔다", async () => {
+    const user = userEvent.setup();
+    renderLookup();
+    await submitLookup(user);
+
+    const refresh = await screen.findByRole("button", { name: "다시 조회" });
+    const details = screen.getByText("회차 시작");
+    const cancel = screen.getByRole("button", { name: "예약 취소" });
+    expect(refresh.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(details.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("R-33, R-58: 다시 조회로 최신 상태와 클래스 설명을 갱신한다", async () => {

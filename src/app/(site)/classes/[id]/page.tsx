@@ -6,7 +6,9 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 
 import { BookingForm } from "@/components/booking-form";
+import { ClassFacts } from "@/components/class-facts";
 import { getPublishedClass } from "@/lib/db";
+import { parseClassInfo } from "@/lib/format";
 
 export async function generateMetadata(
   { params }: PageProps<"/classes/[id]">,
@@ -46,45 +48,52 @@ export default async function ClassPage({ params }: PageProps<"/classes/[id]">) 
   const workshop = await getPublishedClass(id);
   if (!workshop) notFound();
 
+  const { facts, body } = parseClassInfo(workshop.description);
+  const contact = facts.find((fact) => fact.key === "contact")?.value;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Link
         href="/"
-        className="inline-flex min-h-11 items-center gap-2 text-[var(--color-link)] hover:text-[var(--color-link-hover)]"
+        className="inline-flex min-h-11 items-center gap-1.5 text-[15px] text-[var(--text-muted)] hover:text-[var(--text-strong)]"
       >
         <ArrowLeft aria-hidden="true" className="size-[18px]" />
         클래스 목록
       </Link>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_420px] items-start gap-12 max-[901px]:grid-cols-1 max-[901px]:gap-10">
-        <article className="min-w-0 space-y-6">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-image-placeholder)]">
+      <div className="grid grid-cols-[minmax(0,1fr)_420px] items-start gap-12 max-[901px]:grid-cols-1 max-[901px]:gap-8">
+        <article className="flex min-w-0 flex-col gap-8">
+          <div className="relative aspect-video overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-image-placeholder)]">
             {workshop.imageUrl ? (
               <Image
                 src={workshop.imageUrl}
                 alt={`${workshop.title} 대표 이미지`}
                 fill
+                priority
                 sizes="(max-width: 900px) 100vw, (max-width: 1200px) calc(100vw - 532px), 668px"
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-[var(--color-blurple-600)]">
-                <Paintbrush aria-hidden="true" className="size-12" />
+              <div className="flex h-full items-center justify-center text-[var(--color-blurple-700)]">
+                <Paintbrush aria-hidden="true" className="size-16" />
               </div>
             )}
           </div>
           <h1 className="font-heading text-[44px] leading-[1.15] font-extrabold tracking-[-.01em] [overflow-wrap:anywhere] max-[641px]:text-[30px]">
             {workshop.title}
           </h1>
-          <div className="space-y-4">
-            <h2 className="font-heading text-[28px] leading-[1.2] font-bold max-[641px]:text-2xl">클래스 안내</h2>
-            <p className="text-base leading-relaxed whitespace-pre-line text-[var(--text-body)] [overflow-wrap:anywhere]">
-              {workshop.description}
-            </p>
-          </div>
+          <ClassFacts facts={facts} />
+          {body && (
+            <section aria-labelledby="class-body-heading" className="space-y-3">
+              <h2 id="class-body-heading" className="font-heading text-[28px] leading-[1.2] font-bold max-[641px]:text-2xl">클래스 안내</h2>
+              <p className="max-w-[65ch] text-base leading-relaxed whitespace-pre-line text-[var(--text-body)] [overflow-wrap:anywhere]">
+                {body}
+              </p>
+            </section>
+          )}
         </article>
 
-        <BookingForm classId={workshop.id} sessions={workshop.sessions} />
+        <BookingForm classId={workshop.id} sessions={workshop.sessions} contact={contact} />
       </div>
     </div>
   );

@@ -30,3 +30,12 @@ describe("Tag", () => {
     expect(screen.getByText(label)).toBeVisible();
   });
 });
+
+describe("Tag 크기", () => {
+  it("기본은 작은 배지이고 md는 상태 배지와 같은 크기로 표시한다", () => {
+    render(<><Tag tone="success">공개</Tag><Tag tone="success" size="md">공개 중</Tag></>);
+
+    expect(screen.getByText("공개")).toHaveClass("text-xs");
+    expect(screen.getByText("공개 중")).toHaveClass("text-sm");
+  });
+});

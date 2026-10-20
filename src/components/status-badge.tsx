@@ -10,7 +10,7 @@ const bookingStatusStyles: Record<BookingStatus, string> = {
 };
 
 const tagToneStyles = {
-  success: "bg-[var(--color-green)] text-[var(--text-on-green)]",
+  success: "bg-[var(--color-green)] text-[var(--text-strong)]",
   neutral: "bg-[var(--status-neutral-bg)] text-[var(--status-neutral)]",
   danger: "bg-[var(--status-danger-bg)] text-[var(--status-danger)]",
 };
@@ -22,23 +22,30 @@ export function BookingStatusBadge({
 }): JSX.Element {
   return (
     <span
-      className={`inline-flex items-center rounded-[var(--radius-card)] px-3 py-1 text-sm font-medium ${bookingStatusStyles[status]}`}
+      className={`inline-flex items-center rounded-[var(--radius-card)] px-3 py-1 text-sm font-semibold whitespace-nowrap ${bookingStatusStyles[status]}`}
     >
       {BOOKING_STATUS_LABEL[status]}
     </span>
   );
 }
 
+const tagSizeStyles = {
+  sm: "px-2 py-0.5 text-xs",
+  md: "px-3 py-1 text-sm",
+};
+
 export function Tag({
   tone,
+  size = "sm",
   children,
 }: {
   tone: "success" | "neutral" | "danger";
+  size?: "sm" | "md";
   children: ReactNode;
 }): JSX.Element {
   return (
     <span
-      className={`inline-flex items-center rounded-[var(--radius-card)] px-2 py-0.5 text-xs font-medium ${tagToneStyles[tone]}`}
+      className={`inline-flex items-center rounded-[var(--radius-card)] font-semibold whitespace-nowrap ${tagSizeStyles[size]} ${tagToneStyles[tone]}`}
     >
       {children}
     </span>
