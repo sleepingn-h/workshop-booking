@@ -30,6 +30,7 @@ const smallClassName = "h-auto min-h-9 gap-2 self-start rounded-[var(--radius-bu
 const cardClassName = "flex min-w-0 flex-col rounded-[var(--radius-card)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]";
 const requiredMarkClassName = "text-sm font-semibold text-[var(--color-magenta)]";
 const imageErrorMessage = `JPEG·PNG·WebP, ${IMAGE_MAX_BYTES / (1024 * 1024)}MB 이하 이미지를 선택해 주세요.`;
+const imageRetryMessage = "대표 이미지는 올리지 못했어요. 편집 화면에서 다시 올려 주세요.";
 const deleteBlockedMessage = "회차가 있어 삭제할 수 없어요. 대신 비공개로 전환하세요.";
 type ClassFields = Record<keyof ClassInput, string>;
 type FieldSpec = { field: keyof ClassInput; label: string; required: boolean; unit?: string; wide?: boolean; multiline?: boolean; placeholder?: string };
@@ -45,7 +46,7 @@ const fieldSpecs: readonly FieldSpec[] = [
   { field: "materials", label: "준비물", required: true, wide: true },
 ];
 type Change =
-  | { type: "save"; fields: ClassInput }
+  | { type: "save"; fields: ClassInput; image?: File }
   | { type: "visibility"; isPublished: boolean }
   | { type: "image"; file: File }
   | { type: "delete" };
@@ -78,6 +79,12 @@ function toNumber(value: string): number | null {
   return digits === "" ? null : Number(digits);
 }
 
+function imageForm(file: File): FormData {
+  const form = new FormData();
+  form.set("image", file);
+  return form;
+}
+
 function ClassEditor({ classId, workshop, children }: { classId?: string; workshop?: AdminClassDetail; children?: ReactNode }): JSX.Element {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -88,21 +95,35 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof ClassInput>>({});
   const [failure, setFailure] = useState<{ type: Change["type"]; message: string } | null>(null);
   const [imageError, setImageError] = useState("");
+  // 새 클래스는 id가 없어 이미지를 바로 올리지 못하므로, 고른 파일을 저장 때까지 들고 있는다.
+  const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const path = `/api/admin/classes/${encodeURIComponent(classId ?? "")}`;
   const hasSessions = Boolean(workshop?.sessions.length);
+  useEffect(() => {
+    if (!pendingImage) return;
+    return () => URL.revokeObjectURL(pendingImage.url);
+  }, [pendingImage]);
   const mutation = useMutation({
-    mutationFn: async (change: Change): Promise<{ id: string } | undefined> => {
+    mutationFn: async (change: Change): Promise<{ id: string; imageFailed: boolean } | undefined> => {
       if (change.type === "save") {
-        if (!classId) return apiFetch<{ id: string }>("/api/admin/classes", { method: "POST", json: change.fields });
+        if (!classId) {
+          const { id } = await apiFetch<{ id: string }>("/api/admin/classes", { method: "POST", json: change.fields });
+          if (!change.image) return { id, imageFailed: false };
+          // 클래스는 이미 만들어졌으므로 이미지 실패로 저장을 되돌리지 않고 상세에서 다시 올리게 한다.
+          try {
+            await apiFetch(`/api/admin/classes/${encodeURIComponent(id)}/image`, { method: "PUT", body: imageForm(change.image) });
+            return { id, imageFailed: false };
+          } catch {
+            return { id, imageFailed: true };
+          }
+        }
         await apiFetch(path, { method: "PATCH", json: change.fields });
       } else if (change.type === "visibility") {
         await apiFetch(path, { method: "PATCH", json: { isPublished: change.isPublished } });
       } else if (change.type === "image") {
-        const form = new FormData();
-        form.set("image", change.file);
-        await apiFetch(`${path}/image`, { method: "PUT", body: form });
+        await apiFetch(`${path}/image`, { method: "PUT", body: imageForm(change.file) });
       } else {
         await apiFetch(path, { method: "DELETE" });
       }
@@ -111,6 +132,7 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
       setDialogOpen(false);
       if (change.type === "save") {
         toast.success(classId ? "저장했어요" : "비공개 클래스를 만들었어요");
+        if (result?.imageFailed) toast.error(imageRetryMessage);
         if (result) router.push(`/admin/classes/${encodeURIComponent(result.id)}`);
       } else if (change.type === "image") {
         toast.success("대표 이미지를 바꿨어요");
@@ -150,16 +172,17 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
     const validated = validateClassInput({ ...fields, durationMinutes: toNumber(fields.durationMinutes), price });
     if (!validated.ok) { showFieldErrors(validated.fieldErrors); return; }
     setFieldErrors({});
-    mutation.mutate({ type: "save", fields: validated.value });
+    mutation.mutate({ type: "save", fields: validated.value, image: pendingImage?.file });
   }
 
-  function upload(file: File | undefined) {
+  function chooseImage(file: File | undefined) {
     if (fileInput.current) fileInput.current.value = "";
     if (mutation.isPending || !file) return;
     setFailure(null);
     if (!validateImage(file).ok) { setImageError(imageErrorMessage); return; }
     setImageError("");
-    mutation.mutate({ type: "image", file });
+    if (classId) mutation.mutate({ type: "image", file });
+    else setPendingImage({ file, url: URL.createObjectURL(file) });
   }
 
   const form = (
@@ -214,7 +237,33 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
     </form>
   );
 
-  if (!classId) return <div className="min-w-0 max-w-[744px]">{form}</div>;
+  const imageUrl = classId ? workshop?.imageUrl : pendingImage?.url;
+  const imageCard = (
+    <section aria-labelledby={`${prefix}-image-heading`} aria-busy={pending?.type === "image"} className={`${cardClassName} gap-3.5 p-6`}>
+      <h2 id={`${prefix}-image-heading`} className="font-heading text-xl leading-[1.3] font-bold">대표 이미지</h2>
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-control)] bg-[var(--surface-image-placeholder)]">
+        {imageUrl
+          ? <Image src={imageUrl} alt={classId ? `${workshop?.title} 대표 이미지` : "선택한 대표 이미지 미리보기"} fill unoptimized={!classId} sizes="(max-width: 900px) 100vw, 312px" className="object-cover" />
+          : <div className="flex h-full items-center justify-center text-[var(--color-blurple-700)]"><Paintbrush aria-hidden="true" className="size-11" /></div>}
+      </div>
+      <input ref={fileInput} hidden type="file" aria-label="대표 이미지 파일" accept={ALLOWED_IMAGE_TYPES.join(",")} onChange={(event) => chooseImage(event.target.files?.[0])} />
+      <Button type="button" variant="ghost" disabled={mutation.isPending} onClick={() => fileInput.current?.click()} className={`${smallClassName} bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)]`}>
+        <Upload aria-hidden="true" />{pending?.type === "image" ? "업로드 중…" : imageUrl ? "이미지 변경" : classId ? "이미지 업로드" : "이미지 선택"}
+      </Button>
+      {imageError && <ErrorNotice message={imageError} />}
+      {failure?.type === "image" && <ErrorNotice message={failure.message} />}
+      <p className="text-[13px] leading-[1.45] text-[var(--text-muted)]">{classId ? "" : "저장하면 함께 올라가요. "}목록과 링크 미리보기에 쓰여요. 가로 1200px 이상 권장.</p>
+    </section>
+  );
+
+  if (!classId) {
+    return (
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_360px] items-start gap-x-8 gap-y-5 max-[901px]:grid-cols-1">
+        {form}
+        <aside aria-label="대표 이미지" className="sticky top-[92px] flex min-w-0 flex-col gap-5 max-[901px]:static">{imageCard}</aside>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_360px] items-start gap-x-8 gap-y-5 max-[901px]:grid-cols-1">
@@ -224,19 +273,7 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
       </div>
 
       <aside aria-label="대표 이미지·공개·삭제" className="sticky top-[92px] flex min-w-0 flex-col gap-5 max-[901px]:static">
-        <section aria-labelledby={`${prefix}-image-heading`} aria-busy={pending?.type === "image"} className={`${cardClassName} gap-3.5 p-6`}>
-          <h2 id={`${prefix}-image-heading`} className="font-heading text-xl leading-[1.3] font-bold">대표 이미지</h2>
-          <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-control)] bg-[var(--surface-image-placeholder)]">
-            {workshop?.imageUrl ? <Image src={workshop.imageUrl} alt={`${workshop.title} 대표 이미지`} fill sizes="(max-width: 900px) 100vw, 312px" className="object-cover" /> : <div className="flex h-full items-center justify-center text-[var(--color-blurple-700)]"><Paintbrush aria-hidden="true" className="size-11" /></div>}
-          </div>
-          <input ref={fileInput} hidden type="file" aria-label="대표 이미지 파일" accept={ALLOWED_IMAGE_TYPES.join(",")} onChange={(event) => upload(event.target.files?.[0])} />
-          <Button type="button" variant="ghost" disabled={mutation.isPending} onClick={() => fileInput.current?.click()} className={`${smallClassName} bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)]`}>
-            <Upload aria-hidden="true" />{pending?.type === "image" ? "업로드 중…" : workshop?.imageUrl ? "이미지 변경" : "이미지 업로드"}
-          </Button>
-          {imageError && <ErrorNotice message={imageError} />}
-          {failure?.type === "image" && <ErrorNotice message={failure.message} />}
-          <p className="text-[13px] leading-[1.45] text-[var(--text-muted)]">목록과 링크 미리보기에 쓰여요. 가로 1200px 이상 권장.</p>
-        </section>
+        {imageCard}
 
         <section aria-label="공개 설정" className={`${cardClassName} gap-3 p-6`}>
           <ToggleSwitch label="고객에게 공개" checked={isPublished} disabled={mutation.isPending} describedBy={`${prefix}-visibility-hint`} onCheckedChange={(checked) => {

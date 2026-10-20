@@ -49,11 +49,15 @@ async function fillCreate(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("문의처"), "010-0000-9005");
 }
 const created = { title: "향수 만들기", description: "나만의 향을 만들어요.", place: "향 공방", durationMinutes: 90, price: 39000, paymentMethod: "현장 결제", materials: "없음", contact: "010-0000-9005" };
+const image = () => new File(["image"], "sample.png", { type: "image/png" });
 function changes() { return apiMock.mock.calls.filter(([, init]) => init?.method); }
 beforeEach(() => {
   vi.clearAllMocks();
   apiMock.mockReset();
   apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : detail);
+  // jsdom에는 미리보기용 객체 URL이 없다.
+  URL.createObjectURL = vi.fn(() => "blob:preview");
+  URL.revokeObjectURL = vi.fn();
 });
 afterEach(() => { cleanup(); clients.splice(0).forEach((client) => client.clear()); });
 
@@ -70,7 +74,6 @@ describe("AdminClassForm 생성", () => {
     }
     expect(screen.getByLabelText("소개")).not.toHaveAttribute("aria-required");
     expect(screen.getByText("필수 입력")).toBeVisible();
-    expect(screen.queryByLabelText("대표 이미지 파일")).not.toBeInTheDocument();
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "클래스 삭제" })).not.toBeInTheDocument();
   });
@@ -145,6 +148,53 @@ describe("AdminClassForm 생성", () => {
     await user.click(screen.getByRole("button", { name: "저장 중…" }));
     expect(apiMock).toHaveBeenCalledOnce();
     await act(async () => { finish({ id: "new-class" }); });
+  });
+
+  it("보조 영역에 대표 이미지 선택을 두고, 고른 이미지는 미리보기만 하며 저장 전에는 올리지 않는다", async () => {
+    const user = userEvent.setup(); renderForm();
+    expect(screen.getByText("저장하면 함께 올라가요. 목록과 링크 미리보기에 쓰여요. 가로 1200px 이상 권장.")).toBeVisible();
+    await user.upload(screen.getByLabelText("대표 이미지 파일"), image());
+    expect(screen.getByRole("img", { name: "선택한 대표 이미지 미리보기" })).toHaveAttribute("src", "blob:preview");
+    expect(screen.getByRole("button", { name: "이미지 변경" })).toBeVisible();
+    expect(changes()).toHaveLength(0);
+  });
+
+  it.each([
+    ["image/gif", "test.gif", 5],
+    ["image/png", "large.png", IMAGE_MAX_BYTES + 1],
+  ])("새 클래스의 이미지 형식·크기 오류(%s, %s)는 고르는 즉시 거부한다", async (type, name, size) => {
+    const user = userEvent.setup({ applyAccept: false }); renderForm();
+    await user.upload(screen.getByLabelText("대표 이미지 파일"), new File([new Uint8Array(size)], name, { type }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("JPEG·PNG·WebP, 4MB 이하 이미지를 선택해 주세요.");
+    expect(screen.queryByRole("img", { name: "선택한 대표 이미지 미리보기" })).not.toBeInTheDocument();
+  });
+
+  it("R-57: 이미지를 골랐으면 클래스를 만든 뒤 새 클래스에 FormData로 PUT하고 상세로 이동한다", async () => {
+    const user = userEvent.setup(); renderForm();
+    const file = image();
+    await fillCreate(user);
+    await user.upload(screen.getByLabelText("대표 이미지 파일"), file);
+    apiMock.mockResolvedValueOnce({ id: "new-class" });
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/admin/classes/new-class"));
+    expect(changes().map(([path, init]) => [path, init?.method])).toEqual([
+      ["/api/admin/classes", "POST"],
+      ["/api/admin/classes/new-class/image", "PUT"],
+    ]);
+    expect((changes()[1][1]!.body as FormData).get("image")).toBe(file);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("클래스를 만든 뒤 이미지 업로드만 실패하면 상세로 이동하고 다시 올리도록 안내한다", async () => {
+    const user = userEvent.setup(); renderForm();
+    await fillCreate(user);
+    await user.upload(screen.getByLabelText("대표 이미지 파일"), image());
+    apiMock.mockResolvedValueOnce({ id: "new-class" });
+    apiMock.mockRejectedValueOnce(new ApiError("INTERNAL_ERROR", "이미지 저장에 실패했습니다.", 500));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/admin/classes/new-class"));
+    expect(toast.success).toHaveBeenCalledWith("비공개 클래스를 만들었어요");
+    expect(toast.error).toHaveBeenCalledWith("대표 이미지는 올리지 못했어요. 편집 화면에서 다시 올려 주세요.");
   });
 });
 
