@@ -16,6 +16,6 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     passWithNoTests: true,
-    exclude: [...configDefaults.exclude, "**/.next/**", "**/refs/**"],
+    exclude: [...configDefaults.exclude, "**/.next/**", "**/refs/**", ".claude/**"],
   },
 });
