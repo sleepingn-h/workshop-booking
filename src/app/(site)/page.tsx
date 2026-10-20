@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
 
+import { ClassSummaryLine } from "@/components/class-facts";
 import { listPublishedClasses } from "@/lib/db";
-import { formatKstDateTime, parseClassInfo } from "@/lib/format";
+import { formatKstDateTime } from "@/lib/format";
 import type { ClassSummary } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -65,48 +66,43 @@ export default async function Home() {
         </p>
       ) : (
         <ul aria-label="공방 클래스" className="grid grid-cols-3 gap-6 max-[901px]:grid-cols-1">
-          {classes.map((workshop, index) => {
-            const { facts, body } = parseClassInfo(workshop.description);
-            const fact = (key: string) => facts.find((item) => item.key === key)?.value;
-            const summary = [fact("duration"), fact("price")].filter(Boolean).join(" · ") || body.split(/\r?\n/)[0];
-            return (
-              <li key={workshop.id} className="min-w-0">
-                <Link
-                  href={`/classes/${workshop.id}`}
-                  className="flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-card)] text-[var(--text-body)] shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(.22,1,.36,1)] [@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-1 [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[var(--shadow-raised)]"
-                >
-                  <div className={`relative aspect-[4/3] ${placeholderTones[index % placeholderTones.length]}`}>
-                    {workshop.imageUrl ? (
-                      <Image
-                        src={workshop.imageUrl}
-                        alt={`${workshop.title} 대표 이미지`}
-                        fill
-                        sizes="(max-width: 900px) 100vw, (max-width: 1200px) 33vw, 380px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-[var(--color-blurple-700)]">
-                        <Paintbrush aria-hidden="true" className="size-10" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-2.5 px-5 pt-5 pb-[22px]">
-                    {fact("place") && <p className="truncate text-sm text-[var(--text-muted)]">{fact("place")}</p>}
-                    <h2 className="min-w-0 font-heading text-xl leading-[1.3] font-bold [overflow-wrap:anywhere]">
-                      {workshop.title}
-                    </h2>
-                    {summary && <p className="truncate text-sm">{summary}</p>}
-                    <div className="mt-auto flex min-w-0 items-start gap-2 border-t border-[var(--border-subtle)] pt-3.5 text-sm">
-                      <CalendarDays aria-hidden="true" className="mt-px size-[18px] shrink-0 text-[var(--text-muted)]" />
-                      <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-                        <NextSession workshop={workshop} />
-                      </div>
+          {classes.map((workshop, index) => (
+            <li key={workshop.id} className="min-w-0">
+              <Link
+                href={`/classes/${workshop.id}`}
+                className="flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-card)] text-[var(--text-body)] shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(.22,1,.36,1)] [@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-1 [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[var(--shadow-raised)]"
+              >
+                <div className={`relative aspect-[4/3] ${placeholderTones[index % placeholderTones.length]}`}>
+                  {workshop.imageUrl ? (
+                    <Image
+                      src={workshop.imageUrl}
+                      alt={`${workshop.title} 대표 이미지`}
+                      fill
+                      sizes="(max-width: 900px) 100vw, (max-width: 1200px) 33vw, 380px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-[var(--color-blurple-700)]">
+                      <Paintbrush aria-hidden="true" className="size-10" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-col gap-2.5 px-5 pt-5 pb-[22px]">
+                  <h2 className="min-w-0 font-heading text-xl leading-[1.3] font-bold [overflow-wrap:anywhere]">
+                    {workshop.title}
+                  </h2>
+                  <ClassSummaryLine info={workshop} className="text-[var(--text-muted)]" />
+                  {workshop.description && <p className="line-clamp-2 text-sm [overflow-wrap:anywhere]">{workshop.description}</p>}
+                  <div className="mt-auto flex min-w-0 items-start gap-2 border-t border-[var(--border-subtle)] pt-3.5 text-sm">
+                    <CalendarDays aria-hidden="true" className="mt-px size-[18px] shrink-0 text-[var(--text-muted)]" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                      <NextSession workshop={workshop} />
                     </div>
                   </div>
-                </Link>
-              </li>
-            );
-          })}
+                </div>
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
     </div>

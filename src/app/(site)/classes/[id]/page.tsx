@@ -8,7 +8,7 @@ import { connection } from "next/server";
 import { BookingForm } from "@/components/booking-form";
 import { ClassFacts } from "@/components/class-facts";
 import { getPublishedClass } from "@/lib/db";
-import { parseClassInfo } from "@/lib/format";
+import { formatClassListInfo } from "@/lib/format";
 
 export async function generateMetadata(
   { params }: PageProps<"/classes/[id]">,
@@ -25,7 +25,8 @@ export async function generateMetadata(
     };
   }
 
-  const description = workshop.description.replace(/\s+/g, " ").trim().slice(0, 120);
+  // 소개는 선택 입력이라 비어 있으면 장소·소요 시간·비용을 미리보기 설명으로 쓴다(R-55).
+  const description = workshop.description.replace(/\s+/g, " ").trim().slice(0, 120) || formatClassListInfo(workshop);
   const metadataBase = (await parent).metadataBase;
   const imageUrl = workshop.imageUrl
     ? new URL(workshop.imageUrl, metadataBase ?? "http://localhost:3000").href
@@ -47,9 +48,6 @@ export default async function ClassPage({ params }: PageProps<"/classes/[id]">) 
   const { id } = await params;
   const workshop = await getPublishedClass(id);
   if (!workshop) notFound();
-
-  const { facts, body } = parseClassInfo(workshop.description);
-  const contact = facts.find((fact) => fact.key === "contact")?.value;
 
   return (
     <div className="space-y-4">
@@ -82,18 +80,18 @@ export default async function ClassPage({ params }: PageProps<"/classes/[id]">) 
           <h1 className="font-heading text-[44px] leading-[1.15] font-extrabold tracking-[-.01em] [overflow-wrap:anywhere] max-[641px]:text-[30px]">
             {workshop.title}
           </h1>
-          <ClassFacts facts={facts} />
-          {body && (
+          <ClassFacts info={workshop} />
+          {workshop.description && (
             <section aria-labelledby="class-body-heading" className="space-y-3">
               <h2 id="class-body-heading" className="font-heading text-[28px] leading-[1.2] font-bold max-[641px]:text-2xl">클래스 안내</h2>
               <p className="max-w-[65ch] text-base leading-relaxed whitespace-pre-line text-[var(--text-body)] [overflow-wrap:anywhere]">
-                {body}
+                {workshop.description}
               </p>
             </section>
           )}
         </article>
 
-        <BookingForm classId={workshop.id} sessions={workshop.sessions} contact={contact} />
+        <BookingForm classId={workshop.id} sessions={workshop.sessions} contact={workshop.contact} />
       </div>
     </div>
   );

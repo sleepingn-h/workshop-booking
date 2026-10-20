@@ -16,7 +16,7 @@ const result: BookingLookupResult = {
   code,
   status: "cancelled",
   headcount: 2,
-  class: { title: "도자기 클래스", description: "문의처: 02-000-0000" },
+  class: { title: "도자기 클래스", description: "물레로 컵을 만들어요.", place: "가상 공방", durationMinutes: 120, price: 45000, paymentMethod: "현장 결제", materials: "없음", contact: "02-000-0000" },
   session: { startsAt: "2026-10-20T12:00:00+09:00", status: "scheduled" },
   canCancel: false,
   cancelDeadline: null,

@@ -14,8 +14,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("sonner", () => ({ toast }));
 vi.mock("@/lib/api", async (original) => ({ ...await original<typeof import("@/lib/api")>(), apiFetch: vi.fn() }));
 const apiMock = vi.mocked(apiFetch);
-const pottery: AdminClassSummary = { id: "class-1", title: "도자기 컵", isPublished: true, imageUrl: null, upcomingSessionCount: 3, pendingCount: 2 };
-const candle: AdminClassSummary = { id: "class-2", title: "캔들 클래스", isPublished: false, imageUrl: "/samples/class-4.jpg", upcomingSessionCount: 1, pendingCount: 0 };
+const pottery: AdminClassSummary = { id: "class-1", title: "도자기 컵", place: "흙과불 공방", durationMinutes: 120, price: 55000, isPublished: true, imageUrl: null, upcomingSessionCount: 3, pendingCount: 2 };
+const candle: AdminClassSummary = { id: "class-2", title: "캔들 클래스", place: "밤결 향공방", durationMinutes: 90, price: 0, isPublished: false, imageUrl: "/samples/class-4.jpg", upcomingSessionCount: 1, pendingCount: 0 };
 const clients: QueryClient[] = [];
 function renderList() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -39,9 +39,11 @@ describe("AdminClassList", () => {
     await screen.findByText(pottery.title);
   });
 
-  it("R-17, R-52, R-54: 비공개를 포함해 공개 상태·예정 회차 수·승인 대기 건수를 표시한다", async () => {
+  it("R-17, R-52, R-53, R-54: 비공개를 포함해 공개 상태·장소·소요 시간·비용·예정 회차 수·승인 대기 건수를 표시한다", async () => {
     renderList(); await screen.findByText(pottery.title);
     expect(apiMock).toHaveBeenCalledWith("/api/admin/classes");
+    expect(item(pottery.title).getByText("흙과불 공방").parentElement).toHaveTextContent("흙과불 공방·120분·₩55,000");
+    expect(item(candle.title).getByText("무료")).toBeVisible();
     expect(item(pottery.title).getByText("공개", { selector: "span:not(label span)" })).toBeVisible();
     expect(item(pottery.title).getByText("예정 회차 3개")).toBeVisible();
     expect(item(pottery.title).getByText("승인 대기 2건")).toBeVisible();

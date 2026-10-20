@@ -26,6 +26,13 @@ create table public.classes (
   id uuid primary key default gen_random_uuid(),
   title text not null check (btrim(title) <> ''),
   description text not null default '',
+  -- R-53: 안내 항목은 모두 필수다. 소요 시간은 분, 비용은 1인 원 단위다.
+  place text not null check (btrim(place) <> ''),
+  duration_minutes integer not null check (duration_minutes between 1 and 1440),
+  price integer not null check (price between 0 and 10000000),
+  payment_method text not null check (btrim(payment_method) <> ''),
+  materials text not null check (btrim(materials) <> ''),
+  contact text not null check (btrim(contact) <> ''),
   image_url text,
   image_path text,
   is_published boolean not null default false,
@@ -610,33 +617,39 @@ grant execute on function set_class_published(uuid, boolean) to service_role;
 -- BK-DEMO10 | 0010 | B 가죽·7일 후 | pending | 운영자 승인·거절·회차 취소
 -- BK-DEMO11 | 0011 | D 비공개 캔들·6일 후 | pending | 비공개 클래스 기존 예약 조회·취소
 
-insert into public.classes (id, title, description, image_url, is_published)
+insert into public.classes (
+  id, title, description, place, duration_minutes, price, payment_method, materials, contact, image_url, is_published
+)
 values
   (
     '10000000-0000-4000-8000-000000000001',
     '손으로 빚는 도자기 컵',
-    E'장소: 가상 도자기 공방, 시연시 공방로 1 (가상 주소)\n소요 시간: 2시간\n비용·결제 방법: 1인 45,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9001 (시연용 가상 번호)',
+    '손으로 흙을 빚어 나만의 컵 하나를 완성해요. 완성품은 가마에 구운 뒤 3주 후에 찾아갈 수 있어요.',
+    '가상 도자기 공방, 시연시 공방로 1 (가상 주소)', 120, 45000, '현장 결제', '없음', '010-0000-9001 (시연용 가상 번호)',
     '/samples/class-1.jpg',
     true
   ),
   (
     '10000000-0000-4000-8000-000000000002',
     '나만의 가죽 카드 지갑',
-    E'장소: 가상 가죽 공방, 시연시 공방로 2 (가상 주소)\n소요 시간: 2시간 30분\n비용·결제 방법: 1인 55,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9002 (시연용 가상 번호)',
+    '가죽을 재단하고 손바느질해 카드 지갑을 만들어요. 원하면 이니셜을 새길 수 있어요.',
+    '가상 가죽 공방, 시연시 공방로 2 (가상 주소)', 150, 55000, '현장 결제', '없음', '010-0000-9002 (시연용 가상 번호)',
     '/samples/class-2.jpg',
     true
   ),
   (
     '10000000-0000-4000-8000-000000000003',
     '작은 꽃다발 만들기',
-    E'장소: 가상 꽃 공방, 시연시 공방로 3 (가상 주소)\n소요 시간: 1시간 30분\n비용·결제 방법: 무료\n준비물: 꽃을 담아 갈 가방\n문의처: 010-0000-9003 (시연용 가상 번호)',
+    '제철 꽃으로 작은 꽃다발을 만들어 바로 가져가요.',
+    '가상 꽃 공방, 시연시 공방로 3 (가상 주소)', 90, 0, '결제 없음 (무료 클래스)', '꽃을 담아 갈 가방', '010-0000-9003 (시연용 가상 번호)',
     '/samples/class-3.jpg',
     true
   ),
   (
     '10000000-0000-4000-8000-000000000004',
     '향을 고르는 캔들 클래스',
-    E'장소: 가상 캔들 공방, 시연시 공방로 4 (가상 주소)\n소요 시간: 2시간\n비용·결제 방법: 1인 40,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9004 (시연용 가상 번호)',
+    '여러 향을 맡아 보고 골라 나만의 향초를 만들어요.',
+    '가상 캔들 공방, 시연시 공방로 4 (가상 주소)', 120, 40000, '현장 결제', '없음', '010-0000-9004 (시연용 가상 번호)',
     '/samples/class-4.jpg',
     false
   );

@@ -4,7 +4,10 @@ import {
   ALLOWED_IMAGE_TYPES,
   CONFIRMED_CANCEL_WINDOW_MS,
   IMAGE_MAX_BYTES,
+  MAX_DURATION_MINUTES,
   MAX_HEADCOUNT,
+  MAX_PRICE,
+  MIN_DURATION_MINUTES,
   MIN_HEADCOUNT,
   canApply,
   canCancelSession,
@@ -49,6 +52,16 @@ const bookingInput = {
   phone: "01012345678",
 };
 const sessionInput = { startsAt: "2026-10-21T14:00:00+09:00", capacity: 4 };
+const classInput = {
+  title: "도자기",
+  description: "물레로 컵을 만들어요.",
+  place: "가상 공방, 공방로 1",
+  durationMinutes: 120,
+  price: 45000,
+  paymentMethod: "현장 결제",
+  materials: "없음",
+  contact: "010-0000-9001",
+};
 const statuses: BookingStatus[] = ["pending", "confirmed", "rejected", "cancelled"];
 const actions: BookingAction[] = ["confirm", "reject", "cancel"];
 const actors: Actor[] = ["admin", "customer"];
@@ -389,35 +402,117 @@ describe("공개 회차", () => {
 });
 
 describe("클래스 입력", () => {
-  it("R-53 클래스 이름과 설명의 바깥 공백을 제거하고 내부 줄바꿈을 보존한다", () => {
-    expect(validateClassInput({ title: "  도자기  ", description: "  장소: 서울\n준비물: 없음  " })).toEqual({
-      ok: true, value: { title: "도자기", description: "장소: 서울\n준비물: 없음" },
+  it("R-53 클래스 이름·안내 항목의 바깥 공백을 제거하고 소개의 내부 줄바꿈을 보존한다", () => {
+    expect(validateClassInput({
+      ...classInput,
+      title: "  도자기  ",
+      description: "  물레로 컵을 만들어요.\n완성품은 3주 뒤에 찾아가요.  ",
+      place: "  가상 공방, 공방로 1  ",
+      paymentMethod: " 현장 결제 ",
+      materials: " 없음 ",
+      contact: " 010-0000-9001 ",
+    })).toEqual({
+      ok: true,
+      value: {
+        ...classInput,
+        title: "도자기",
+        description: "물레로 컵을 만들어요.\n완성품은 3주 뒤에 찾아가요.",
+        place: "가상 공방, 공방로 1",
+        paymentMethod: "현장 결제",
+        materials: "없음",
+        contact: "010-0000-9001",
+      },
     });
   });
 
-  it("R-57 공개 전 안내를 준비하는 클래스는 빈 설명을 저장할 수 있다", () => {
-    expect(validateClassInput({ title: "도자기", description: "" })).toEqual({
-      ok: true, value: { title: "도자기", description: "" },
+  it.each([[""], ["   "], [undefined]])("R-53 소개는 선택 입력이라 %j이면 빈 문자열로 저장한다", (description) => {
+    expect(validateClassInput({ ...classInput, description })).toEqual({
+      ok: true, value: { ...classInput, description: "" },
     });
   });
 
-  it.each([null, undefined, [], "class", {}, { title: " ", description: 123 }])(
-    "R-53 클래스 입력 %j의 잘못된 필드를 반환한다", (input) => {
-      expect(validateClassInput(input)).toEqual({
-        ok: false, code: "VALIDATION_ERROR",
-        fieldErrors: { title: expect.any(String), description: expect.any(String) },
+  it.each([null, undefined, [], "class", {}])("R-53 클래스 입력 %j는 모든 필수 항목의 오류를 반환한다", (input) => {
+    expect(validateClassInput(input)).toEqual({
+      ok: false, code: "VALIDATION_ERROR",
+      fieldErrors: {
+        title: expect.any(String),
+        place: expect.any(String),
+        durationMinutes: expect.any(String),
+        price: expect.any(String),
+        paymentMethod: expect.any(String),
+        materials: expect.any(String),
+        contact: expect.any(String),
+      },
+    });
+  });
+
+  it.each(["title", "place", "paymentMethod", "materials", "contact"] as const)(
+    "R-53 필수 텍스트 항목 %s가 공백뿐이면 그 항목만 오류를 반환한다", (field) => {
+      expect(validateClassInput({ ...classInput, [field]: "  " })).toEqual({
+        ok: false, code: "VALIDATION_ERROR", fieldErrors: { [field]: expect.any(String) },
+      });
+    },
+  );
+
+  it("R-53 소개가 문자열이 아니면 오류를 반환한다", () => {
+    expect(validateClassInput({ ...classInput, description: 123 })).toEqual({
+      ok: false, code: "VALIDATION_ERROR", fieldErrors: { description: expect.any(String) },
+    });
+  });
+
+  it.each([[MIN_DURATION_MINUTES], [120], [MAX_DURATION_MINUTES]])("R-53 소요 시간 %i분은 저장할 수 있다", (durationMinutes) => {
+    expect(validateClassInput({ ...classInput, durationMinutes })).toEqual({
+      ok: true, value: { ...classInput, durationMinutes },
+    });
+  });
+
+  it.each([[MIN_DURATION_MINUTES - 1], [MAX_DURATION_MINUTES + 1], [90.5], [Number.NaN], ["120"], [null]])(
+    "R-53 소요 시간 %j는 1~1440분의 정수가 아니라 거부한다", (durationMinutes) => {
+      expect(validateClassInput({ ...classInput, durationMinutes })).toEqual({
+        ok: false, code: "VALIDATION_ERROR", fieldErrors: { durationMinutes: "소요 시간은 1~1440분 사이의 정수로 입력해 주세요." },
+      });
+    },
+  );
+
+  it.each([[0], [45000], [MAX_PRICE]])("R-53 비용 %i원은 저장할 수 있다", (price) => {
+    expect(validateClassInput({ ...classInput, price })).toEqual({ ok: true, value: { ...classInput, price } });
+  });
+
+  it.each([[-1], [MAX_PRICE + 1], [100.5], [Number.NaN], ["45000"], [null]])(
+    "R-53 비용 %j는 0~10,000,000원의 정수가 아니라 거부한다", (price) => {
+      expect(validateClassInput({ ...classInput, price })).toEqual({
+        ok: false, code: "VALIDATION_ERROR", fieldErrors: { price: "비용은 0~10,000,000원 사이의 정수로 입력해 주세요." },
       });
     },
   );
 
   it.each([
     [{ title: "  찻잔  " }, { title: "찻잔" }],
-    [{ description: " 새 안내 " }, { description: "새 안내" }],
+    [{ description: " 새 소개 " }, { description: "새 소개" }],
     [{ description: "" }, { description: "" }],
+    [{ place: " 새 장소 " }, { place: "새 장소" }],
+    [{ durationMinutes: 90 }, { durationMinutes: 90 }],
+    [{ price: 0 }, { price: 0 }],
+    [{ paymentMethod: "계좌 이체" }, { paymentMethod: "계좌 이체" }],
+    [{ materials: "앞치마" }, { materials: "앞치마" }],
+    [{ contact: "02-123-4567" }, { contact: "02-123-4567" }],
     [{ isPublished: true }, { isPublished: true }],
     [{ isPublished: false }, { isPublished: false }],
   ])("R-52 R-58 클래스 부분 수정은 제공한 필드만 반환한다: %j", (input, value) => {
     expect(validateClassPatch(input)).toEqual({ ok: true, value });
+  });
+
+  it("R-53 클래스 부분 수정은 보낸 안내 항목을 생성과 같은 기준으로 검사한다", () => {
+    expect(validateClassPatch({ place: " ", durationMinutes: 0, price: -1, materials: "", isPublished: "true" })).toEqual({
+      ok: false, code: "VALIDATION_ERROR",
+      fieldErrors: {
+        place: expect.any(String),
+        durationMinutes: expect.any(String),
+        price: expect.any(String),
+        materials: expect.any(String),
+        isPublished: expect.any(String),
+      },
+    });
   });
 
   it("R-58 클래스 부분 수정의 여러 필드 오류를 함께 반환한다", () => {
@@ -428,9 +523,7 @@ describe("클래스 입력", () => {
   });
 
   it("R-58 클래스 입력·수정에서 지원하지 않는 필드는 결과에 포함하지 않는다", () => {
-    expect(validateClassInput({ title: "도자기", description: "안내", isPublished: true })).toEqual({
-      ok: true, value: { title: "도자기", description: "안내" },
-    });
+    expect(validateClassInput({ ...classInput, isPublished: true, id: "other" })).toEqual({ ok: true, value: classInput });
     expect(validateClassPatch({ title: "도자기", id: "other" })).toEqual({ ok: true, value: { title: "도자기" } });
   });
 

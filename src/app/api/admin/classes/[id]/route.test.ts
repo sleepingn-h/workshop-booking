@@ -15,7 +15,7 @@ const now = new Date("2026-10-17T03:00:00.123Z");
 const id = "11111111-1111-4111-8111-111111111111";
 const url = `https://example.test/api/admin/classes/${id}`;
 const context = () => ({ params: Promise.resolve({ id }) });
-const input = { title: "수정한 클래스", description: "변경된 안내", isPublished: false };
+const input = { title: "수정한 클래스", description: "변경된 소개", place: "가상 공방", durationMinutes: 120, price: 45000, paymentMethod: "현장 결제", materials: "없음", contact: "02-000-0000", isPublished: false };
 
 function authenticatedRequest(method = "GET", body?: string): Request {
   return new Request(url, {

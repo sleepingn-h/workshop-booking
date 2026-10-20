@@ -1,13 +1,13 @@
-import { Clock, MapPin, Package, Phone, Wallet, type LucideIcon } from "lucide-react";
+import { Clock, CreditCard, MapPin, Package, Phone, Wallet, type LucideIcon } from "lucide-react";
 import type { JSX, ReactNode } from "react";
 
-import type { ClassFact, ClassFactKey } from "@/lib/format";
+import { classFacts, formatDuration, formatPrice, type ClassFact, type ClassFactKey } from "@/lib/format";
+import type { ClassInfo, ClassListInfo } from "@/lib/types";
 
-// 판단에 먼저 쓰는 소요 시간·비용을 앞에 두고, 긴 값(장소·준비물)은 한 줄을 다 쓴다.
-const factOrder: readonly ClassFactKey[] = ["duration", "price", "place", "materials", "contact"];
 const factIcons: Record<ClassFactKey, LucideIcon> = {
   duration: Clock,
   price: Wallet,
+  paymentMethod: CreditCard,
   place: MapPin,
   materials: Package,
   contact: Phone,
@@ -26,13 +26,11 @@ function FactValue({ fact }: { fact: ClassFact }): ReactNode {
   </>;
 }
 
-export function ClassFacts({ facts }: { facts: ClassFact[] }): JSX.Element | null {
-  if (facts.length === 0) return null;
-  const sorted = factOrder.flatMap((key) => facts.filter((fact) => fact.key === key));
-
+// 긴 값(장소·준비물)은 한 줄을 다 쓴다.
+export function ClassFacts({ info }: { info: ClassInfo }): JSX.Element {
   return (
     <dl className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-5 max-[641px]:grid-cols-1">
-      {sorted.map((fact, index) => {
+      {classFacts(info).map((fact, index) => {
         const Icon = factIcons[fact.key];
         return (
           <div key={fact.key} className={`flex min-w-0 items-start gap-2.5 ${wideFacts.has(fact.key) ? "col-span-full" : ""}`}>
@@ -45,5 +43,18 @@ export function ClassFacts({ facts }: { facts: ClassFact[] }): JSX.Element | nul
         );
       })}
     </dl>
+  );
+}
+
+// 목록 한 줄에서 긴 장소만 말줄임하고 소요 시간·비용은 항상 보이게 둔다.
+export function ClassSummaryLine({ info, className = "" }: { info: ClassListInfo; className?: string }): JSX.Element {
+  return (
+    <p className={`flex min-w-0 items-baseline text-sm ${className}`}>
+      <span className="truncate">{info.place}</span>
+      <span aria-hidden="true" className="mx-1.5 shrink-0">·</span>
+      <span className="shrink-0">{formatDuration(info.durationMinutes)}</span>
+      <span aria-hidden="true" className="mx-1.5 shrink-0">·</span>
+      <span className="shrink-0">{formatPrice(info.price)}</span>
+    </p>
   );
 }

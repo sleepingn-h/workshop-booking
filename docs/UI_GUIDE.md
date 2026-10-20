@@ -144,7 +144,12 @@ shadcn/ui 컴포넌트를 CLI로 추가한 뒤 테마 변수와 래퍼(variant·
 오류: border #ff4d6a, 아래 13px/500 오류 문구(#ff4d6a). 보조 설명은 같은 자리에 text-muted
 비활성: bg #e7e7ea
 여러 줄: 같은 규칙, min-height 120px, padding 14px 16px
+필수 표시: 라벨 오른쪽 4px에 `*` 14px/600, `--color-magenta`(#ec48bd). label 밖에 두고 aria-hidden
+단위: 입력 안 오른쪽 16px에 16px text-muted("분", "원"), 입력 padding-right 48px
+앞 아이콘: 입력 안 왼쪽 16px에 20px text-muted(장소 MapPin), 입력 padding-left 48px
 ```
+
+- 클래스 기본 정보는 2열 폼이다. 클래스명·소개·장소·준비물은 한 줄 전체, 소요 시간|비용, 결제 방법|문의처는 나란히 둔다. 640px 이하 1열.
 
 ### 회차 선택(라디오 카드)
 

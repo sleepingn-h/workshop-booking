@@ -113,6 +113,22 @@ export type BookingInput = {
   phone: string;
 };
 
+// 클래스의 필수 안내 항목(R-53)이다. 소요 시간은 분, 비용은 1인 원 단위 정수다.
+export type ClassInfo = {
+  place: string;
+  durationMinutes: number;
+  price: number;
+  paymentMethod: string;
+  materials: string;
+  contact: string;
+};
+
+// 소개(description)는 선택 입력이라 빈 문자열일 수 있다.
+export type ClassInput = { title: string; description: string } & ClassInfo;
+
+// 목록 한 줄에 쓰는 안내 항목이다.
+export type ClassListInfo = Pick<ClassInfo, "place" | "durationMinutes" | "price">;
+
 // DTO의 시각 필드는 모두 오프셋이 포함된 ISO 8601 문자열이다.
 export type PublicSession = {
   id: string;
@@ -129,7 +145,7 @@ export type ClassSummary = {
   // 신청 가능한 다음 회차(모두 마감이면 첫 회차)와 그 남은 자리. 표시할 회차가 없으면 둘 다 null이다.
   nextSessionAt: string | null;
   nextSessionRemaining: number | null;
-};
+} & ClassListInfo;
 
 export type ClassDetail = {
   id: string;
@@ -137,7 +153,7 @@ export type ClassDetail = {
   description: string;
   imageUrl: string | null;
   sessions: PublicSession[];
-};
+} & ClassInfo;
 
 export type CreateBookingResult = { code: string; status: "pending" };
 
@@ -145,7 +161,7 @@ export type BookingLookupResult = {
   code: string;
   status: BookingStatus;
   headcount: number;
-  class: { title: string; description: string };
+  class: { title: string; description: string } & ClassInfo;
   session: { startsAt: string; status: SessionStatus };
   canCancel: boolean;
   cancelDeadline: string | null;
@@ -184,7 +200,7 @@ export type AdminClassSummary = {
   // 시작 전이며 취소되지 않은 회차 수와, 모든 회차의 승인 대기 예약 건수다.
   upcomingSessionCount: number;
   pendingCount: number;
-};
+} & ClassListInfo;
 
 export type AdminSession = {
   id: string;
@@ -203,4 +219,4 @@ export type AdminClassDetail = {
   imageUrl: string | null;
   isPublished: boolean;
   sessions: AdminSession[];
-};
+} & ClassInfo;

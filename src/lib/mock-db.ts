@@ -20,6 +20,8 @@ import {
   type AdminSession,
   type BookingLookupResult,
   type ClassDetail,
+  type ClassInfo,
+  type ClassListInfo,
   type ClassSummary,
 } from "./types";
 
@@ -37,28 +39,52 @@ const CLASSES: readonly SampleClass[] = [
   {
     id: "10000000-0000-4000-8000-000000000001",
     title: "손으로 빚는 도자기 컵",
-    description: "장소: 가상 도자기 공방, 시연시 공방로 1 (가상 주소)\n소요 시간: 2시간\n비용·결제 방법: 1인 45,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9001 (시연용 가상 번호)",
+    description: "손으로 흙을 빚어 나만의 컵 하나를 완성해요. 완성품은 가마에 구운 뒤 3주 후에 찾아갈 수 있어요.",
+    place: "가상 도자기 공방, 시연시 공방로 1 (가상 주소)",
+    durationMinutes: 120,
+    price: 45000,
+    paymentMethod: "현장 결제",
+    materials: "없음",
+    contact: "010-0000-9001 (시연용 가상 번호)",
     imageUrl: "/samples/class-1.jpg",
     isPublished: true,
   },
   {
     id: "10000000-0000-4000-8000-000000000002",
     title: "나만의 가죽 카드 지갑",
-    description: "장소: 가상 가죽 공방, 시연시 공방로 2 (가상 주소)\n소요 시간: 2시간 30분\n비용·결제 방법: 1인 55,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9002 (시연용 가상 번호)",
+    description: "가죽을 재단하고 손바느질해 카드 지갑을 만들어요. 원하면 이니셜을 새길 수 있어요.",
+    place: "가상 가죽 공방, 시연시 공방로 2 (가상 주소)",
+    durationMinutes: 150,
+    price: 55000,
+    paymentMethod: "현장 결제",
+    materials: "없음",
+    contact: "010-0000-9002 (시연용 가상 번호)",
     imageUrl: "/samples/class-2.jpg",
     isPublished: true,
   },
   {
     id: "10000000-0000-4000-8000-000000000003",
     title: "작은 꽃다발 만들기",
-    description: "장소: 가상 꽃 공방, 시연시 공방로 3 (가상 주소)\n소요 시간: 1시간 30분\n비용·결제 방법: 무료\n준비물: 꽃을 담아 갈 가방\n문의처: 010-0000-9003 (시연용 가상 번호)",
+    description: "제철 꽃으로 작은 꽃다발을 만들어 바로 가져가요.",
+    place: "가상 꽃 공방, 시연시 공방로 3 (가상 주소)",
+    durationMinutes: 90,
+    price: 0,
+    paymentMethod: "결제 없음 (무료 클래스)",
+    materials: "꽃을 담아 갈 가방",
+    contact: "010-0000-9003 (시연용 가상 번호)",
     imageUrl: "/samples/class-3.jpg",
     isPublished: true,
   },
   {
     id: "10000000-0000-4000-8000-000000000004",
     title: "향을 고르는 캔들 클래스",
-    description: "장소: 가상 캔들 공방, 시연시 공방로 4 (가상 주소)\n소요 시간: 2시간\n비용·결제 방법: 1인 40,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9004 (시연용 가상 번호)",
+    description: "여러 향을 맡아 보고 골라 나만의 향초를 만들어요.",
+    place: "가상 캔들 공방, 시연시 공방로 4 (가상 주소)",
+    durationMinutes: 120,
+    price: 40000,
+    paymentMethod: "현장 결제",
+    materials: "없음",
+    contact: "010-0000-9004 (시연용 가상 번호)",
     imageUrl: "/samples/class-4.jpg",
     isPublished: false,
   },
@@ -178,6 +204,14 @@ function visibleSessions(id: string, now: Date): SampleSession[] {
     isVisibleSession({ status: session.status, startsAt: new Date(session.startsAt) }, now));
 }
 
+function listInfo(workshop: SampleClass): ClassListInfo {
+  return { place: workshop.place, durationMinutes: workshop.durationMinutes, price: workshop.price };
+}
+
+function classInfo(workshop: SampleClass): ClassInfo {
+  return { ...listInfo(workshop), paymentMethod: workshop.paymentMethod, materials: workshop.materials, contact: workshop.contact };
+}
+
 function bookingsForSession(id: string): SampleBooking[] {
   return BOOKINGS.filter((booking) => booking.sessionId === id);
 }
@@ -193,6 +227,7 @@ export function mockListPublishedClasses(now: Date): ClassSummary[] {
       id: workshop.id,
       title: workshop.title,
       description: workshop.description,
+      ...listInfo(workshop),
       imageUrl: workshop.imageUrl,
       nextSessionAt: next?.startsAt ?? null,
       nextSessionRemaining: next?.remaining ?? null,
@@ -217,6 +252,7 @@ export function mockGetPublishedClass(id: string, now: Date): ClassDetail | null
     id: workshop.id,
     title: workshop.title,
     description: workshop.description,
+    ...classInfo(workshop),
     imageUrl: workshop.imageUrl,
     sessions: publicSessions(id, now),
   };
@@ -238,7 +274,7 @@ export function mockLookupBooking(input: unknown, now: Date): BookingLookupResul
     code: booking.code,
     status: booking.status,
     headcount: booking.headcount,
-    class: { title: workshop.title, description: workshop.description },
+    class: { title: workshop.title, description: workshop.description, ...classInfo(workshop) },
     session: { startsAt: session.startsAt, status: session.status },
     canCancel: canTransition(booking.status, "cancel", "customer", { startsAt, now }).ok,
     cancelDeadline: customerCancelDeadline(booking.status, startsAt)?.toISOString() ?? null,
@@ -295,6 +331,7 @@ export function mockListAdminClasses(now: Date): AdminClassSummary[] {
   return [...CLASSES].reverse().map((workshop) => ({
     id: workshop.id,
     title: workshop.title,
+    ...listInfo(workshop),
     isPublished: workshop.isPublished,
     imageUrl: workshop.imageUrl,
     upcomingSessionCount: visibleSessions(workshop.id, now).length,

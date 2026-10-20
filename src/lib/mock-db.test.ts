@@ -7,6 +7,10 @@ const potteryId = "10000000-0000-4000-8000-000000000001";
 const leatherId = "10000000-0000-4000-8000-000000000002";
 const flowerId = "10000000-0000-4000-8000-000000000003";
 const candleId = "10000000-0000-4000-8000-000000000004";
+const potteryInfo = { place: "가상 도자기 공방, 시연시 공방로 1 (가상 주소)", durationMinutes: 120, price: 45000 };
+const leatherInfo = { place: "가상 가죽 공방, 시연시 공방로 2 (가상 주소)", durationMinutes: 150, price: 55000 };
+const flowerInfo = { place: "가상 꽃 공방, 시연시 공방로 3 (가상 주소)", durationMinutes: 90, price: 0 };
+const candleInfo = { place: "가상 캔들 공방, 시연시 공방로 4 (가상 주소)", durationMinutes: 120, price: 40000 };
 const sessionId = (n: number) => `20000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const at = (offset: number) => new Date(now.getTime() + offset).toISOString();
 const credentials = (n: number) => ({
@@ -75,12 +79,21 @@ describe("목 데이터 모드 플래그", () => {
 });
 
 describe("고객 클래스 조회", () => {
-  it("R-52 R-54 공개 클래스만 삽입 순서로 표시하고 다음 회차를 반환한다", () => {
+  it("R-52 R-53 R-54 공개 클래스만 삽입 순서로 표시하고 장소·소요 시간·비용과 다음 회차를 반환한다", () => {
     expect(db.mockListPublishedClasses(now)).toEqual([
-      expect.objectContaining({ id: potteryId, title: "손으로 빚는 도자기 컵", imageUrl: "/samples/class-1.jpg", nextSessionAt: at(20 * HOUR), nextSessionRemaining: 3 }),
-      expect.objectContaining({ id: leatherId, title: "나만의 가죽 카드 지갑", imageUrl: "/samples/class-2.jpg", nextSessionAt: at(7 * DAY), nextSessionRemaining: 5 }),
-      expect.objectContaining({ id: flowerId, title: "작은 꽃다발 만들기", imageUrl: "/samples/class-3.jpg", nextSessionAt: null, nextSessionRemaining: null }),
+      expect.objectContaining({ id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg", nextSessionAt: at(20 * HOUR), nextSessionRemaining: 3 }),
+      expect.objectContaining({ id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg", nextSessionAt: at(7 * DAY), nextSessionRemaining: 5 }),
+      expect.objectContaining({ id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg", nextSessionAt: null, nextSessionRemaining: null }),
     ]);
+  });
+
+  it("R-53 모든 샘플 클래스는 소개와 안내 항목이 클래스 입력 검증을 통과한다", () => {
+    for (const { id } of db.mockListAdminClasses(now)) {
+      const { title, description, place, durationMinutes, price, paymentMethod, materials, contact } = db.mockGetAdminClass(id, now);
+      const input = { title, description, place, durationMinutes, price, paymentMethod, materials, contact };
+      expect(description).not.toBe("");
+      expect(rules.validateClassInput(input)).toEqual({ ok: true, value: input });
+    }
   });
 
   it.each([candleId, "10000000-0000-4000-8000-999999999999", "invalid-id"])(
@@ -139,6 +152,10 @@ describe("고객 예약 조회", () => {
       class: {
         title: "손으로 빚는 도자기 컵",
         description: db.mockGetPublishedClass(potteryId, now)!.description,
+        ...potteryInfo,
+        paymentMethod: "현장 결제",
+        materials: "없음",
+        contact: "010-0000-9001 (시연용 가상 번호)",
       },
       session: { startsAt: at(4 * DAY), status: "scheduled" },
       canCancel: true,
@@ -258,12 +275,12 @@ describe("운영자 예약 목록", () => {
 });
 
 describe("운영자 클래스 조회", () => {
-  it("R-17 R-52 R-54 비공개 포함 4개 클래스를 최신 순으로 반환하고 예정 회차와 승인 대기를 센다", () => {
+  it("R-17 R-52 R-53 R-54 비공개 포함 4개 클래스를 최신 순으로 반환하고 장소·소요 시간·비용과 예정 회차·승인 대기를 센다", () => {
     expect(db.mockListAdminClasses(now)).toEqual([
-      { id: candleId, title: "향을 고르는 캔들 클래스", imageUrl: "/samples/class-4.jpg", isPublished: false, upcomingSessionCount: 1, pendingCount: 1 },
-      { id: flowerId, title: "작은 꽃다발 만들기", imageUrl: "/samples/class-3.jpg", isPublished: true, upcomingSessionCount: 0, pendingCount: 0 },
-      { id: leatherId, title: "나만의 가죽 카드 지갑", imageUrl: "/samples/class-2.jpg", isPublished: true, upcomingSessionCount: 1, pendingCount: 1 },
-      { id: potteryId, title: "손으로 빚는 도자기 컵", imageUrl: "/samples/class-1.jpg", isPublished: true, upcomingSessionCount: 3, pendingCount: 3 },
+      { id: candleId, title: "향을 고르는 캔들 클래스", ...candleInfo, imageUrl: "/samples/class-4.jpg", isPublished: false, upcomingSessionCount: 1, pendingCount: 1 },
+      { id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg", isPublished: true, upcomingSessionCount: 0, pendingCount: 0 },
+      { id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg", isPublished: true, upcomingSessionCount: 1, pendingCount: 1 },
+      { id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg", isPublished: true, upcomingSessionCount: 3, pendingCount: 3 },
     ]);
   });
 

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, type JSX } from "react";
 import { toast } from "sonner";
 
+import { ClassSummaryLine } from "@/components/class-facts";
 import { LoadingPlaceholder } from "@/components/loading-placeholder";
 import { Tag } from "@/components/status-badge";
 import { ToggleSwitch } from "@/components/toggle-switch";
@@ -40,6 +41,7 @@ function ClassRow({ workshop }: { workshop: AdminClassSummary }): JSX.Element {
           <h2 id={titleId} className="min-w-0 font-heading text-lg leading-[1.3] font-bold [overflow-wrap:anywhere]">{workshop.title}</h2>
           <Tag tone={workshop.isPublished ? "success" : "neutral"}>{workshop.isPublished ? "공개" : "비공개"}</Tag>
         </div>
+        <ClassSummaryLine info={workshop} className="text-[var(--text-muted)]" />
         <p className="text-sm text-[var(--text-body)]">
           <span>예정 회차 {workshop.upcomingSessionCount}개</span>
           {workshop.pendingCount > 0 && <> · <b className="font-semibold text-[var(--color-magenta-600)]">승인 대기 {workshop.pendingCount}건</b></>}

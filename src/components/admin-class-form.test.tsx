@@ -16,10 +16,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("sonner", () => ({ toast }));
 vi.mock("@/lib/api", async (original) => ({ ...await original<typeof import("@/lib/api")>(), apiFetch: vi.fn() }));
 const apiMock = vi.mocked(apiFetch);
+const info = { place: "서울 공방", durationMinutes: 120, price: 30000, paymentMethod: "현장 결제", materials: "없음", contact: "02-123-4567" };
 const detail: AdminClassDetail = {
-  id: "class-1", title: "도자기 만들기", description: "장소: 서울 공방\n소요 시간: 2시간\n비용·결제 방법: 3만원, 현장 결제\n준비물: 없음\n문의처: 02-123-4567",
+  id: "class-1", title: "도자기 만들기", description: "물레로 컵을 만들어요.", ...info,
   imageUrl: null, isPublished: false, sessions: [],
 };
+const requiredLabels = ["클래스명", "장소", "소요 시간", "비용 (1인)", "결제 방법", "준비물", "문의처"];
 const withSession: AdminClassDetail = {
   ...detail, sessions: [{ id: "session-1", startsAt: "2026-10-25T05:00:00Z", capacity: 4, status: "scheduled", occupied: 0, bookingCount: 0, pendingCount: 0 }],
 };
@@ -38,8 +40,15 @@ async function renderEdit() {
 }
 async function fillCreate(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("클래스명"), "  향수 만들기  ");
-  await user.type(screen.getByLabelText("소개"), "  장소: 서울  ");
+  await user.type(screen.getByLabelText("소개"), "  나만의 향을 만들어요.  ");
+  await user.type(screen.getByLabelText("장소"), " 향 공방 ");
+  await user.type(screen.getByLabelText("소요 시간"), "90");
+  await user.type(screen.getByLabelText("비용 (1인)"), "39,000");
+  await user.type(screen.getByLabelText("결제 방법"), "현장 결제");
+  await user.type(screen.getByLabelText("준비물"), "없음");
+  await user.type(screen.getByLabelText("문의처"), "010-0000-9005");
 }
+const created = { title: "향수 만들기", description: "나만의 향을 만들어요.", place: "향 공방", durationMinutes: 90, price: 39000, paymentMethod: "현장 결제", materials: "없음", contact: "010-0000-9005" };
 function changes() { return apiMock.mock.calls.filter(([, init]) => init?.method); }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -49,33 +58,68 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.splice(0).forEach((client) => client.clear()); });
 
 describe("AdminClassForm 생성", () => {
-  it("빈 이름은 필드 오류를 표시하고 API를 호출하지 않는다", async () => {
+  it("R-53: 이름·소개와 안내 항목을 칸마다 두고, 필수 칸 라벨 옆에 마젠타 *를 표시한다", () => {
+    renderForm();
+    expect(screen.getByRole("heading", { level: 1, name: "새 클래스" })).toBeVisible();
+    for (const label of requiredLabels) {
+      const input = screen.getByLabelText(label);
+      expect(input).toHaveAttribute("aria-required", "true");
+      const mark = input.closest("div")!.parentElement!.querySelector("[aria-hidden='true']");
+      expect(mark).toHaveTextContent("*");
+      expect(mark).toHaveClass("text-[var(--color-magenta)]");
+    }
+    expect(screen.getByLabelText("소개")).not.toHaveAttribute("aria-required");
+    expect(screen.getByText("필수 입력")).toBeVisible();
+    expect(screen.queryByLabelText("대표 이미지 파일")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "클래스 삭제" })).not.toBeInTheDocument();
+  });
+
+  it("R-53: 소요 시간·비용 칸 안에 단위를 표시하고, 입력한 비용을 원화로 보여준다", async () => {
+    const user = userEvent.setup(); renderForm();
+    expect(screen.getByLabelText("소요 시간")).toHaveAccessibleDescription("분");
+    expect(screen.getByLabelText("비용 (1인)")).toHaveAccessibleDescription(/원/);
+    await user.type(screen.getByLabelText("비용 (1인)"), "55000");
+    expect(screen.getByText("₩55,000")).toBeVisible();
+    await user.clear(screen.getByLabelText("비용 (1인)"));
+    await user.type(screen.getByLabelText("비용 (1인)"), "0");
+    expect(screen.getByText("무료")).toBeVisible();
+  });
+
+  it("R-53: 빈 필수 칸마다 오류를 표시하고 첫 오류 칸으로 포커스를 옮기며 API를 호출하지 않는다", async () => {
     const user = userEvent.setup(); renderForm();
     await user.type(screen.getByLabelText("클래스명"), "   ");
     await user.click(screen.getByRole("button", { name: "저장" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("클래스 이름을 입력해 주세요.");
-    expect(screen.getByLabelText("클래스명")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("클래스 이름을 입력해 주세요.")).toBeVisible();
+    for (const label of requiredLabels) expect(screen.getByLabelText(label)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("소개")).toHaveAttribute("aria-invalid", "false");
+    expect(screen.getByLabelText("클래스명")).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it("R-53: 이름·소개 두 칸만 두고 소개 placeholder로 필수 안내 작성 형식을 보여준다", () => {
-    renderForm();
-    expect(screen.getByRole("heading", { level: 1, name: "새 클래스" })).toBeVisible();
-    expect(screen.getAllByRole("textbox")).toHaveLength(2);
-    const placeholder = screen.getByLabelText("소개").getAttribute("placeholder");
-    for (const label of ["장소:", "소요 시간:", "비용·결제 방법:", "준비물:", "문의처:"]) expect(placeholder).toContain(label);
-    expect(screen.queryByLabelText("대표 이미지 파일")).not.toBeInTheDocument();
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  it.each([
+    ["소요 시간", "0", "소요 시간은 1~1440분 사이의 정수로 입력해 주세요."],
+    ["소요 시간", "1441", "소요 시간은 1~1440분 사이의 정수로 입력해 주세요."],
+    ["비용 (1인)", "10000001", "비용은 0~10,000,000원 사이의 정수로 입력해 주세요."],
+    ["비용 (1인)", "4만원", "비용은 0~10,000,000원 사이의 정수로 입력해 주세요."],
+  ])("R-53: %s에 %s를 넣으면 범위 오류를 표시하고 그 칸으로 포커스를 옮긴다", async (label, value, message) => {
+    const user = userEvent.setup(); renderForm(); await fillCreate(user);
+    await user.clear(screen.getByLabelText(label));
+    await user.type(screen.getByLabelText(label), value);
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    expect(screen.getByText(message)).toBeVisible();
+    expect(screen.getByLabelText(label)).toHaveFocus();
+    expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it("R-57: 정리한 이름·설명만 POST하고 생성된 비공개 클래스 상세로 이동한다", async () => {
+  it("R-53, R-57: 정리한 입력을 숫자와 함께 POST하고 생성된 비공개 클래스 상세로 이동한다", async () => {
     const user = userEvent.setup(); const client = renderForm();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     apiMock.mockResolvedValueOnce({ id: "new-class" });
     await fillCreate(user);
     await user.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/admin/classes/new-class"));
-    expect(apiMock).toHaveBeenCalledWith("/api/admin/classes", { method: "POST", json: { title: "향수 만들기", description: "장소: 서울" } });
+    expect(changes()).toEqual([["/api/admin/classes", { method: "POST", json: created }]]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] });
     expect(toast.success).toHaveBeenCalledWith("비공개 클래스를 만들었어요");
   });
@@ -86,6 +130,7 @@ describe("AdminClassForm 생성", () => {
     await user.click(screen.getByRole("button", { name: "저장" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("클래스를 만들지 못했습니다.");
     expect(screen.getByLabelText("클래스명")).toHaveValue("  향수 만들기  ");
+    expect(screen.getByLabelText("비용 (1인)")).toHaveValue("39,000");
     expect(router.push).not.toHaveBeenCalled();
   });
 
@@ -96,6 +141,7 @@ describe("AdminClassForm 생성", () => {
     await user.click(screen.getByRole("button", { name: "저장" }));
     expect(screen.getByRole("button", { name: "저장 중…" })).toBeDisabled();
     expect(screen.getByLabelText("클래스명")).toBeDisabled();
+    expect(screen.getByLabelText("소요 시간")).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "저장 중…" }));
     expect(apiMock).toHaveBeenCalledOnce();
     await act(async () => { finish({ id: "new-class" }); });
@@ -103,13 +149,20 @@ describe("AdminClassForm 생성", () => {
 });
 
 describe("AdminClassForm 수정", () => {
-  it("R-58: 상세 쿼리 키로 저장된 이름을 제목에, 설명·비공개 상태와 이미지 대체 면을 표시한다", async () => {
+  it("R-53, R-58: 상세 쿼리 키로 저장된 이름을 제목에, 소개·안내 항목·비공개 상태와 이미지 대체 면을 표시한다", async () => {
     const client = await renderEdit();
     expect(client.getQueryData(["admin", "class", detail.id])).toEqual(detail);
     expect(apiMock).toHaveBeenCalledWith(path);
     const heading = screen.getByRole("heading", { level: 1, name: detail.title });
     expect(heading.parentElement).toHaveTextContent("비공개");
     expect(screen.getByLabelText("소개")).toHaveValue(detail.description);
+    expect(screen.getByLabelText("장소")).toHaveValue("서울 공방");
+    expect(screen.getByLabelText("소요 시간")).toHaveValue("120");
+    expect(screen.getByLabelText("비용 (1인)")).toHaveValue("30000");
+    expect(screen.getByText("₩30,000")).toBeVisible();
+    expect(screen.getByLabelText("결제 방법")).toHaveValue("현장 결제");
+    expect(screen.getByLabelText("준비물")).toHaveValue("없음");
+    expect(screen.getByLabelText("문의처")).toHaveValue("02-123-4567");
     expect(screen.getByRole("link", { name: "클래스 관리" })).toHaveAttribute("href", "/admin/classes");
     expect(screen.getByRole("button", { name: "이미지 업로드" })).toBeVisible();
     expect(screen.getByText("목록과 링크 미리보기에 쓰여요. 가로 1200px 이상 권장.")).toBeVisible();
@@ -131,38 +184,44 @@ describe("AdminClassForm 수정", () => {
     expect(screen.getByText("비공개 클래스는 목록에 나오지 않고 링크로도 신청할 수 없어요.")).toBeVisible();
   });
 
-  it("R-58: 수정한 이름·설명만 PATCH하고 운영자 쿼리와 토스트를 갱신한다", async () => {
+  it("R-53, R-58: 정리한 이름·소개·안내 항목을 PATCH하고 운영자 쿼리와 토스트를 갱신한다", async () => {
     const user = userEvent.setup(); const client = await renderEdit();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     await user.clear(screen.getByLabelText("클래스명"));
     await user.type(screen.getByLabelText("클래스명"), "  새 도자기  ");
-    apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : { ...detail, title: "새 도자기" });
+    await user.clear(screen.getByLabelText("소요 시간"));
+    await user.type(screen.getByLabelText("소요 시간"), "150");
+    apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : { ...detail, title: "새 도자기", durationMinutes: 150 });
     await user.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("저장했어요"));
-    expect(apiMock).toHaveBeenCalledWith(path, { method: "PATCH", json: { title: "새 도자기", description: detail.description } });
+    expect(apiMock).toHaveBeenCalledWith(path, {
+      method: "PATCH",
+      json: { title: "새 도자기", description: detail.description, ...info, durationMinutes: 150 },
+    });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] });
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("새 도자기"));
     expect(screen.getByLabelText("클래스명")).toHaveValue("새 도자기");
   });
 
-  it("수정 실패 시 이름·설명 입력과 서버 사유를 유지한다", async () => {
+  it("수정 실패 시 이름·소개 입력과 서버 사유를 유지한다", async () => {
     const user = userEvent.setup(); await renderEdit();
     await user.type(screen.getByLabelText("클래스명"), " 수정");
-    await user.type(screen.getByLabelText("소개"), " 추가 안내");
+    await user.type(screen.getByLabelText("소개"), " 추가 소개");
     apiMock.mockRejectedValueOnce(new ApiError("INTERNAL_ERROR", "저장에 실패했습니다.", 500));
     await user.click(screen.getByRole("button", { name: "저장" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("저장에 실패했습니다.");
     expect(screen.getByLabelText("클래스명")).toHaveValue(`${detail.title} 수정`);
-    expect(screen.getByLabelText("소개")).toHaveValue(`${detail.description} 추가 안내`);
+    expect(screen.getByLabelText("소개")).toHaveValue(`${detail.description} 추가 소개`);
     expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("서버의 필드 오류도 해당 입력에 연결한다", async () => {
     const user = userEvent.setup(); await renderEdit();
-    apiMock.mockRejectedValueOnce(new ApiError("VALIDATION_ERROR", "입력을 확인하세요.", 400, { title: "이름을 다시 확인해 주세요." }));
+    apiMock.mockRejectedValueOnce(new ApiError("VALIDATION_ERROR", "입력을 확인하세요.", 400, { title: "이름을 다시 확인해 주세요.", contact: "문의처를 다시 확인해 주세요." }));
     await user.click(screen.getByRole("button", { name: "저장" }));
     expect(await screen.findByText("이름을 다시 확인해 주세요.")).toBeVisible();
     expect(screen.getByLabelText("클래스명")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("문의처")).toHaveAccessibleDescription("문의처를 다시 확인해 주세요.");
   });
 
   it.each([false, true])("R-52, R-57: 공개 %s 상태의 스위치는 확인 없이 반대 값만 PATCH하고 처리 중에는 비활성이다", async (isPublished) => {
@@ -193,14 +252,14 @@ describe("AdminClassForm 수정", () => {
     expect(screen.getByRole("switch", { name: "고객에게 공개" })).not.toBeChecked();
   });
 
-  it("공개 전환 후 재조회해도 저장하지 않은 이름·설명을 유지한다", async () => {
+  it("공개 전환 후 재조회해도 저장하지 않은 이름·소개를 유지한다", async () => {
     const user = userEvent.setup(); await renderEdit();
     await user.type(screen.getByLabelText("클래스명"), " 미저장");
-    await user.type(screen.getByLabelText("소개"), " 미저장 안내");
+    await user.type(screen.getByLabelText("소개"), " 미저장 소개");
     await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
     await waitFor(() => expect(screen.getByRole("switch", { name: "고객에게 공개" })).toBeEnabled());
     expect(screen.getByLabelText("클래스명")).toHaveValue(`${detail.title} 미저장`);
-    expect(screen.getByLabelText("소개")).toHaveValue(`${detail.description} 미저장 안내`);
+    expect(screen.getByLabelText("소개")).toHaveValue(`${detail.description} 미저장 소개`);
   });
 
   it("기존 대표 이미지를 미리보기로 표시하고 변경 버튼을 둔다", async () => {

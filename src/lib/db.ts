@@ -44,6 +44,9 @@ import {
   type BookingLookupResult,
   type BookingStatus,
   type ClassDetail,
+  type ClassInfo,
+  type ClassInput,
+  type ClassListInfo,
   type ClassSummary,
   type CreateBookingResult,
   type SessionStatus,
@@ -53,6 +56,12 @@ type ClassRow = {
   id: string;
   title: string;
   description: string;
+  place: string;
+  duration_minutes: number;
+  price: number;
+  payment_method: string;
+  materials: string;
+  contact: string;
   image_url: string | null;
   is_published: boolean;
 };
@@ -95,10 +104,20 @@ type CustomerBooking = {
   workshop: ClassRow;
 };
 
-const CLASS_COLUMNS = "id,title,description,image_url,is_published";
+const CLASS_COLUMNS = "id,title,description,place,duration_minutes,price,payment_method,materials,contact,image_url,is_published";
 const SESSION_COLUMNS = "id,class_id,starts_at,capacity,status";
 const BOOKING_COLUMNS = "id,code,session_id,headcount,phone,status";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CLASS_INPUT_COLUMNS: Record<keyof ClassInput, keyof ClassRow> = {
+  title: "title",
+  description: "description",
+  place: "place",
+  durationMinutes: "duration_minutes",
+  price: "price",
+  paymentMethod: "payment_method",
+  materials: "materials",
+  contact: "contact",
+};
 
 let client: SupabaseClient | undefined;
 
@@ -115,6 +134,24 @@ function getClient(): SupabaseClient {
   } catch {
     throw new AppError("INTERNAL_ERROR");
   }
+}
+
+function toClassListInfo(row: ClassRow): ClassListInfo {
+  return { place: row.place, durationMinutes: row.duration_minutes, price: row.price };
+}
+
+function toClassInfo(row: ClassRow): ClassInfo {
+  return {
+    ...toClassListInfo(row),
+    paymentMethod: row.payment_method,
+    materials: row.materials,
+    contact: row.contact,
+  };
+}
+
+// 검증을 마친 클래스 입력의 필드 이름을 테이블 컬럼 이름으로 바꾼다.
+function toClassColumns(input: Partial<ClassInput>): Partial<Record<keyof ClassRow, string | number>> {
+  return Object.fromEntries(Object.entries(input).map(([field, value]) => [CLASS_INPUT_COLUMNS[field as keyof ClassInput], value]));
 }
 
 function toAppError(error: { message?: string } | null): AppError {
@@ -179,7 +216,7 @@ function toBookingLookupResult(
     code: booking.code,
     status: booking.status,
     headcount: booking.headcount,
-    class: { title: workshop.title, description: workshop.description },
+    class: { title: workshop.title, description: workshop.description, ...toClassInfo(workshop) },
     session: { startsAt: session.starts_at, status: session.status },
     canCancel: canTransition(booking.status, "cancel", "customer", { startsAt, now }).ok,
     cancelDeadline: customerCancelDeadline(booking.status, startsAt)?.toISOString() ?? null,
@@ -219,6 +256,7 @@ export async function listPublishedClasses(): Promise<ClassSummary[]> {
       id: row.id,
       title: row.title,
       description: row.description,
+      ...toClassListInfo(row),
       imageUrl: row.image_url,
       nextSessionAt: next?.startsAt ?? null,
       nextSessionRemaining: next?.remaining ?? null,
@@ -262,6 +300,7 @@ export async function getPublishedClass(id: string): Promise<ClassDetail | null>
     id: workshop.id,
     title: workshop.title,
     description: workshop.description,
+    ...toClassInfo(workshop),
     imageUrl: workshop.image_url,
     sessions: visible.map((row) => ({
       id: row.id,
@@ -483,6 +522,7 @@ export async function listAdminClasses(): Promise<AdminClassSummary[]> {
   return rows.map((row) => ({
     id: row.id,
     title: row.title,
+    ...toClassListInfo(row),
     isPublished: row.is_published,
     imageUrl: row.image_url,
     upcomingSessionCount: row.sessions
@@ -523,6 +563,7 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
     id: workshop.id,
     title: workshop.title,
     description: workshop.description,
+    ...toClassInfo(workshop),
     imageUrl: workshop.image_url,
     isPublished: workshop.is_published,
     sessions: (sessions ?? [])
@@ -548,7 +589,7 @@ export async function createClass(input: unknown): Promise<{ id: string }> {
 
   const { data, error } = await getClient()
     .from("classes")
-    .insert(validated.value)
+    .insert(toClassColumns(validated.value))
     .select("id")
     .returns<{ id: string }[]>()
     .maybeSingle();
@@ -564,15 +605,12 @@ export async function updateClass(id: string, input: unknown): Promise<void> {
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const validated = validateClassPatch(input);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
-  const { title, description, isPublished } = validated.value;
+  const { isPublished, ...fields } = validated.value;
 
-  if (title !== undefined || description !== undefined) {
-    const fields: { title?: string; description?: string } = {};
-    if (title !== undefined) fields.title = title;
-    if (description !== undefined) fields.description = description;
+  if (Object.keys(fields).length > 0) {
     const { data, error } = await getClient()
       .from("classes")
-      .update(fields)
+      .update(toClassColumns(fields))
       .eq("id", id)
       .select("id")
       .returns<{ id: string }[]>()

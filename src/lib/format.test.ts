@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  classFacts,
+  formatClassListInfo,
+  formatDuration,
   formatKstDate,
   formatKstDateTime,
   formatKstTime,
   formatPhone,
+  formatPrice,
   formatStartsIn,
   isoToKstInput,
   kstInputToIso,
-  parseClassInfo,
 } from "./format";
 
 describe("한국 시각 표시", () => {
@@ -98,38 +101,38 @@ describe("한국 시각 datetime-local 변환", () => {
   });
 });
 
-describe("R-53 클래스 설명의 안내 항목", () => {
-  const description = "장소: 가상 도자기 공방, 공방로 1\n소요 시간: 2시간\n비용·결제 방법: 1인 45,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-9001";
+describe("R-53 클래스 안내 항목 표시", () => {
+  const info = {
+    place: "가상 도자기 공방, 공방로 1",
+    durationMinutes: 120,
+    price: 45000,
+    paymentMethod: "현장 결제",
+    materials: "없음",
+    contact: "010-0000-9001",
+  };
 
-  it("R-53: '라벨: 값' 줄을 정해진 순서의 안내 항목으로 나누고 나머지는 본문으로 남긴다", () => {
-    expect(parseClassInfo(`물레로 컵을 만들어요.\n\n${description}\n완성품은 3주 뒤에 찾아가요.`)).toEqual({
-      facts: [
-        { key: "place", label: "장소", value: "가상 도자기 공방, 공방로 1" },
-        { key: "duration", label: "소요 시간", value: "2시간" },
-        { key: "price", label: "비용·결제 방법", value: "1인 45,000원, 현장 결제" },
-        { key: "materials", label: "준비물", value: "없음" },
-        { key: "contact", label: "문의처", value: "010-0000-9001" },
-      ],
-      body: "물레로 컵을 만들어요.\n\n완성품은 3주 뒤에 찾아가요.",
-    });
+  it.each([[1, "1분"], [90, "90분"], [1440, "1440분"]])("R-53 소요 시간 %i분을 %s로 표시한다", (minutes, text) => {
+    expect(formatDuration(minutes)).toBe(text);
   });
 
-  it("R-53: 표기가 조금 달라도 같은 항목으로 읽고, 처음 나온 값만 쓴다", () => {
-    const parsed = parseClassInfo("문의처 ： 02-123-4567\n비용: 무료\n비용 및 결제 방법: 현장 결제\n소요시간: 90분");
+  it.each([[0, "무료"], [900, "₩900"], [45000, "₩45,000"], [10_000_000, "₩10,000,000"]])("R-53 비용 %i원을 %s로 표시한다", (price, text) => {
+    expect(formatPrice(price)).toBe(text);
+  });
 
-    expect(parsed.facts).toEqual([
-      { key: "duration", label: "소요 시간", value: "90분" },
-      { key: "price", label: "비용·결제 방법", value: "무료" },
-      { key: "contact", label: "문의처", value: "02-123-4567" },
+  it("R-53 목록 한 줄은 장소·소요 시간·비용 순서로 잇는다", () => {
+    expect(formatClassListInfo(info)).toBe("가상 도자기 공방, 공방로 1 · 120분 · ₩45,000");
+    expect(formatClassListInfo({ ...info, price: 0 })).toBe("가상 도자기 공방, 공방로 1 · 120분 · 무료");
+  });
+
+  it("R-53 상세 안내 항목은 판단에 먼저 쓰는 소요 시간·비용부터 라벨과 함께 나열한다", () => {
+    expect(classFacts(info)).toEqual([
+      { key: "duration", label: "소요 시간", value: "120분" },
+      { key: "price", label: "비용 (1인)", value: "₩45,000" },
+      { key: "paymentMethod", label: "결제 방법", value: "현장 결제" },
+      { key: "contact", label: "문의처", value: "010-0000-9001" },
+      { key: "place", label: "장소", value: "가상 도자기 공방, 공방로 1" },
+      { key: "materials", label: "준비물", value: "없음" },
     ]);
-    expect(parsed.body).toBe("비용 및 결제 방법: 현장 결제");
-  });
-
-  it("R-53: 안내 항목이 없거나 값이 비면 설명 전체를 본문으로 둔다", () => {
-    expect(parseClassInfo("  자유롭게 쓴 설명입니다.\n장소:  ")).toEqual({
-      facts: [],
-      body: "자유롭게 쓴 설명입니다.\n장소:",
-    });
   });
 });
 

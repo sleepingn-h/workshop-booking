@@ -3,6 +3,7 @@ import type {
   BookingAction,
   BookingInput,
   BookingStatus,
+  ClassInput,
   FieldErrors,
   RuleResult,
   SessionStatus,
@@ -18,9 +19,11 @@ export const ALLOWED_IMAGE_TYPES: readonly string[] = [
   "image/png",
   "image/webp",
 ];
+export const MIN_DURATION_MINUTES = 1;
+export const MAX_DURATION_MINUTES = 24 * 60;
+export const MAX_PRICE = 10_000_000;
 
 type LookupInput = { code: string; phoneLast4: string };
-type ClassInput = { title: string; description: string };
 type ClassPatch = Partial<ClassInput> & { isPublished?: boolean };
 type SessionInput = { startsAt: Date; capacity: number };
 
@@ -40,6 +43,48 @@ function validHeadcount(value: number): boolean {
 
 function validCapacity(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
+function integerBetween(min: number, max: number): (value: unknown) => number | undefined {
+  return (value) => typeof value === "number" && Number.isInteger(value) && value >= min && value <= max ? value : undefined;
+}
+
+function requiredText(value: unknown): string | undefined {
+  return trimmedString(value) || undefined;
+}
+
+// 클래스 입력 항목별로 저장할 값을 돌려주고, 받을 수 없는 값이면 undefined를 돌려준다(R-53).
+const CLASS_FIELD_PARSERS: { [K in keyof ClassInput]: (value: unknown) => ClassInput[K] | undefined } = {
+  title: requiredText,
+  description: (value) => value === undefined ? "" : typeof value === "string" ? value.trim() : undefined,
+  place: requiredText,
+  durationMinutes: integerBetween(MIN_DURATION_MINUTES, MAX_DURATION_MINUTES),
+  price: integerBetween(0, MAX_PRICE),
+  paymentMethod: requiredText,
+  materials: requiredText,
+  contact: requiredText,
+};
+const CLASS_FIELDS = Object.keys(CLASS_FIELD_PARSERS) as (keyof ClassInput)[];
+const CLASS_FIELD_ERRORS: Record<keyof ClassInput, string> = {
+  title: "클래스 이름을 입력해 주세요.",
+  description: "클래스 소개를 문자열로 입력해 주세요.",
+  place: "장소를 입력해 주세요.",
+  durationMinutes: `소요 시간은 ${MIN_DURATION_MINUTES}~${MAX_DURATION_MINUTES}분 사이의 정수로 입력해 주세요.`,
+  price: `비용은 0~${MAX_PRICE.toLocaleString("ko-KR")}원 사이의 정수로 입력해 주세요.`,
+  paymentMethod: "결제 방법을 입력해 주세요.",
+  materials: "준비물을 입력해 주세요. 없으면 '없음'으로 적어 주세요.",
+  contact: "문의처를 입력해 주세요.",
+};
+
+function parseClassField<K extends keyof ClassInput>(
+  field: K,
+  raw: unknown,
+  value: Partial<ClassInput>,
+  fieldErrors: FieldErrors<keyof ClassInput>,
+): void {
+  const parsed = CLASS_FIELD_PARSERS[field](raw);
+  if (parsed === undefined) fieldErrors[field] = CLASS_FIELD_ERRORS[field];
+  else value[field] = parsed;
 }
 
 const STARTS_AT_REQUIRED = "시작 날짜와 시각을 입력해 주세요.";
@@ -178,14 +223,12 @@ export function nextBookableSession<T extends { remaining: number }>(sessions: r
 
 export function validateClassInput(input: unknown): Validated<ClassInput, keyof ClassInput> {
   const data = inputRecord(input);
-  const title = trimmedString(data.title);
-  const description = trimmedString(data.description);
+  const value: Partial<ClassInput> = {};
   const fieldErrors: FieldErrors<keyof ClassInput> = {};
 
-  if (!title) fieldErrors.title = "클래스 이름을 입력해 주세요.";
-  if (typeof data.description !== "string") fieldErrors.description = "클래스 설명을 문자열로 입력해 주세요.";
+  for (const field of CLASS_FIELDS) parseClassField(field, data[field], value, fieldErrors);
   if (Object.keys(fieldErrors).length > 0) return { ok: false, code: "VALIDATION_ERROR", fieldErrors };
-  return { ok: true, value: { title, description } };
+  return { ok: true, value: value as ClassInput };
 }
 
 export function validateClassPatch(input: unknown): Validated<ClassPatch, keyof ClassPatch> {
@@ -193,14 +236,9 @@ export function validateClassPatch(input: unknown): Validated<ClassPatch, keyof 
   const value: ClassPatch = {};
   const fieldErrors: FieldErrors<keyof ClassPatch> = {};
 
-  if ("title" in data) {
-    const title = trimmedString(data.title);
-    if (!title) fieldErrors.title = "클래스 이름을 입력해 주세요.";
-    else value.title = title;
-  }
-  if ("description" in data) {
-    if (typeof data.description !== "string") fieldErrors.description = "클래스 설명을 문자열로 입력해 주세요.";
-    else value.description = data.description.trim();
+  // 보낸 항목만 생성과 같은 기준으로 검사한다(R-53).
+  for (const field of CLASS_FIELDS) {
+    if (field in data) parseClassField(field, data[field], value, fieldErrors);
   }
   if ("isPublished" in data) {
     if (typeof data.isPublished !== "boolean") fieldErrors.isPublished = "공개 여부는 참 또는 거짓으로 입력해 주세요.";

@@ -21,7 +21,11 @@ const booked: AdminSession = { id: "booked", startsAt: "2026-10-22T05:00:37Z", c
 const soon: AdminSession = { id: "soon", startsAt: "2026-10-19T13:30:00Z", capacity: 4, occupied: 0, bookingCount: 0, pendingCount: 0, status: "scheduled" };
 const cancelled: AdminSession = { id: "cancelled", startsAt: "2026-10-24T05:00:00Z", capacity: 4, occupied: 0, bookingCount: 2, pendingCount: 0, status: "cancelled" };
 const past: AdminSession = { id: "past", startsAt: "2026-10-18T05:00:00Z", capacity: 4, occupied: 1, bookingCount: 1, pendingCount: 1, status: "scheduled" };
-const detail: AdminClassDetail = { id: "class-1", title: "도자기 만들기", description: "장소: 서울 공방", imageUrl: null, isPublished: false, sessions: [empty, cancelled, booked, past, soon] };
+const detail: AdminClassDetail = {
+  id: "class-1", title: "도자기 만들기", description: "물레로 컵을 만들어요.",
+  place: "서울 공방", durationMinutes: 120, price: 30000, paymentMethod: "현장 결제", materials: "없음", contact: "02-123-4567",
+  imageUrl: null, isPublished: false, sessions: [empty, cancelled, booked, past, soon],
+};
 const path = `/api/admin/classes/${detail.id}`;
 const bookings: AdminBooking[] = (["pending", "confirmed", "rejected", "cancelled"] as const).map((status, index) => ({
   id: `booking-${index}`, code: `BK-TEST0${index}`, status, headcount: index === 0 ? 2 : 1,

@@ -2,7 +2,7 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CircleAlert, Info, Paintbrush, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, CircleAlert, Info, MapPin, Paintbrush, Trash2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,8 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, apiFetch } from "@/lib/api";
+import { formatPrice } from "@/lib/format";
 import { ALLOWED_IMAGE_TYPES, IMAGE_MAX_BYTES, validateClassInput, validateImage } from "@/lib/rules";
-import { ERROR_MESSAGE, type AdminClassDetail, type FieldErrors } from "@/lib/types";
+import { ERROR_MESSAGE, type AdminClassDetail, type ClassInput, type FieldErrors } from "@/lib/types";
 
 const inputClassName = "min-h-[52px] w-full min-w-0 rounded-[var(--radius-card)] border-2 border-[var(--border-input)] bg-[var(--surface-card)] px-4 text-base text-[var(--text-strong)] outline-none focus-visible:border-[var(--color-primary)] focus-visible:shadow-[var(--shadow-input-focus)] focus-visible:ring-0 md:text-base";
 const buttonClassName = "h-auto min-h-11 rounded-[var(--radius-card)] px-5 py-3 text-base font-medium whitespace-normal transition-[color,background-color,transform] duration-200 active:translate-y-0 active:scale-[.97] disabled:cursor-not-allowed disabled:bg-[var(--surface-sunk)] disabled:text-[var(--text-control-disabled)] disabled:opacity-100";
@@ -27,13 +28,24 @@ const primaryClassName = `${buttonClassName} bg-[var(--color-primary)] text-[var
 const ghostClassName = `${buttonClassName} bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)]`;
 const smallClassName = "h-auto min-h-9 gap-2 self-start rounded-[var(--radius-button-sm)] px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-200 active:translate-y-0 active:scale-[.97] disabled:cursor-not-allowed disabled:bg-[var(--surface-sunk)] disabled:text-[var(--text-control-disabled)] disabled:opacity-100 max-[641px]:min-h-11 [&_svg]:size-4";
 const cardClassName = "flex min-w-0 flex-col rounded-[var(--radius-card)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]";
+const requiredMarkClassName = "text-sm font-semibold text-[var(--color-magenta)]";
 const imageErrorMessage = `JPEG·PNG·WebP, ${IMAGE_MAX_BYTES / (1024 * 1024)}MB 이하 이미지를 선택해 주세요.`;
 const deleteBlockedMessage = "회차가 있어 삭제할 수 없어요. 대신 비공개로 전환하세요.";
-// 설명 하나에 필수 안내를 쓰므로(R-53) 고객 상세가 안내 항목으로 나누는 "라벨: 값" 줄 형식을 예시로 보여준다.
-const descriptionPlaceholder = "클래스를 소개해 주세요.\n장소: 공방 이름과 방문 주소\n소요 시간: 2시간\n비용·결제 방법: 1인 45,000원, 현장 결제\n준비물: 없음\n문의처: 010-0000-0000";
-type ClassFields = { title: string; description: string };
+type ClassFields = Record<keyof ClassInput, string>;
+type FieldSpec = { field: keyof ClassInput; label: string; required: boolean; unit?: string; wide?: boolean; multiline?: boolean; placeholder?: string };
+// 화면 순서이자 첫 오류 칸을 고르는 순서다. 소개 외의 항목은 모두 필수다(R-53).
+const fieldSpecs: readonly FieldSpec[] = [
+  { field: "title", label: "클래스명", required: true, wide: true },
+  { field: "description", label: "소개", required: false, wide: true, multiline: true, placeholder: "무엇을 만들고 어떻게 진행되는지 소개해 주세요." },
+  { field: "place", label: "장소", required: true, wide: true },
+  { field: "durationMinutes", label: "소요 시간", required: true, unit: "분" },
+  { field: "price", label: "비용 (1인)", required: true, unit: "원" },
+  { field: "paymentMethod", label: "결제 방법", required: true },
+  { field: "contact", label: "문의처", required: true },
+  { field: "materials", label: "준비물", required: true, wide: true },
+];
 type Change =
-  | { type: "save"; fields: ClassFields }
+  | { type: "save"; fields: ClassInput }
   | { type: "visibility"; isPublished: boolean }
   | { type: "image"; file: File }
   | { type: "delete" };
@@ -47,14 +59,33 @@ function ErrorNotice({ message }: { message: string }): JSX.Element {
   );
 }
 
+function toFields(workshop?: AdminClassDetail): ClassFields {
+  return {
+    title: workshop?.title ?? "",
+    description: workshop?.description ?? "",
+    place: workshop?.place ?? "",
+    durationMinutes: workshop ? String(workshop.durationMinutes) : "",
+    price: workshop ? String(workshop.price) : "",
+    paymentMethod: workshop?.paymentMethod ?? "",
+    materials: workshop?.materials ?? "",
+    contact: workshop?.contact ?? "",
+  };
+}
+
+// 숫자 칸은 천 단위 쉼표를 받고, 비우면 null로 넘겨 규칙 함수가 필수 오류를 내게 한다.
+function toNumber(value: string): number | null {
+  const digits = value.replace(/,/g, "").trim();
+  return digits === "" ? null : Number(digits);
+}
+
 function ClassEditor({ classId, workshop, children }: { classId?: string; workshop?: AdminClassDetail; children?: ReactNode }): JSX.Element {
   const router = useRouter();
   const queryClient = useQueryClient();
   const prefix = useId();
   // 이미지·공개 상태 재조회로 저장 전 입력을 덮어쓰지 않는다.
   const [draft, setDraft] = useState<ClassFields | null>(null);
-  const fields = draft ?? { title: workshop?.title ?? "", description: workshop?.description ?? "" };
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof ClassFields>>({});
+  const fields = draft ?? toFields(workshop);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof ClassInput>>({});
   const [failure, setFailure] = useState<{ type: Change["type"]; message: string } | null>(null);
   const [imageError, setImageError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -96,20 +127,28 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
         ? error.code === "CLASS_HAS_SESSIONS" ? deleteBlockedMessage : error.message
         : ERROR_MESSAGE.INTERNAL_ERROR;
       setFailure({ type: change.type, message });
-      if (change.type === "save" && error instanceof ApiError && error.fields) setFieldErrors(error.fields);
+      if (change.type === "save" && error instanceof ApiError && error.fields) showFieldErrors(error.fields);
       toast.error(message);
       if (error instanceof ApiError && error.status === 401) router.replace("/admin/login");
     },
   });
   const pending = mutation.isPending ? mutation.variables : undefined;
   const isPublished = pending?.type === "visibility" ? pending.isPublished : workshop?.isPublished ?? false;
+  const price = toNumber(fields.price);
+  const pricePreview = price !== null && Number.isInteger(price) && price >= 0 ? formatPrice(price) : null;
+
+  function showFieldErrors(errors: FieldErrors<keyof ClassInput>) {
+    setFieldErrors(errors);
+    const first = fieldSpecs.find(({ field }) => errors[field]);
+    if (first) document.getElementById(`${prefix}-${first.field}`)?.focus();
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (mutation.isPending) return;
     setFailure(null);
-    const validated = validateClassInput(fields);
-    if (!validated.ok) { setFieldErrors(validated.fieldErrors); return; }
+    const validated = validateClassInput({ ...fields, durationMinutes: toNumber(fields.durationMinutes), price });
+    if (!validated.ok) { showFieldErrors(validated.fieldErrors); return; }
     setFieldErrors({});
     mutation.mutate({ type: "save", fields: validated.value });
   }
@@ -125,16 +164,48 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
 
   const form = (
     <form onSubmit={submit} noValidate aria-label="클래스 정보" aria-busy={pending?.type === "save"} className={`${cardClassName} gap-4 p-7 max-[641px]:p-5`}>
-      <h2 className="font-heading text-xl leading-[1.3] font-bold">기본 정보</h2>
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <Label htmlFor={`${prefix}-title`} className="text-sm font-semibold text-[var(--text-strong)]">클래스명</Label>
-        <Input id={`${prefix}-title`} name="title" value={fields.title} onChange={(event) => { setDraft({ ...fields, title: event.target.value }); setFieldErrors((errors) => ({ ...errors, title: undefined })); }} disabled={pending?.type === "save"} aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? `${prefix}-title-error` : undefined} className={inputClassName} />
-        {fieldErrors.title && <p id={`${prefix}-title-error`} role="alert" className="text-[13px] font-medium text-[var(--status-danger)]">{fieldErrors.title}</p>}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="font-heading text-xl leading-[1.3] font-bold">기본 정보</h2>
+        <p aria-hidden="true" className="text-[13px] text-[var(--text-muted)]"><span className={requiredMarkClassName}>*</span> <span>필수 입력</span></p>
       </div>
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <Label htmlFor={`${prefix}-description`} className="text-sm font-semibold text-[var(--text-strong)]">소개</Label>
-        <Textarea id={`${prefix}-description`} name="description" value={fields.description} placeholder={descriptionPlaceholder} onChange={(event) => { setDraft({ ...fields, description: event.target.value }); setFieldErrors((errors) => ({ ...errors, description: undefined })); }} disabled={pending?.type === "save"} aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? `${prefix}-description-error` : undefined} className={`${inputClassName} min-h-[200px] resize-y px-4 py-3.5 leading-[1.5]`} />
-        {fieldErrors.description && <p id={`${prefix}-description-error`} role="alert" className="text-[13px] font-medium text-[var(--status-danger)]">{fieldErrors.description}</p>}
+      <div className="grid min-w-0 grid-cols-2 gap-4 max-[641px]:grid-cols-1">
+        {fieldSpecs.map((spec) => {
+          const id = `${prefix}-${spec.field}`;
+          const error = fieldErrors[spec.field];
+          const unitId = spec.unit ? `${id}-unit` : undefined;
+          const hintId = spec.field === "price" && pricePreview ? `${id}-hint` : undefined;
+          const control = {
+            id,
+            name: spec.field,
+            value: fields[spec.field],
+            placeholder: spec.placeholder,
+            disabled: pending?.type === "save",
+            "aria-required": spec.required || undefined,
+            "aria-invalid": Boolean(error),
+            "aria-describedby": [unitId, hintId, error && `${id}-error`].filter(Boolean).join(" ") || undefined,
+            onChange: (event: { target: { value: string } }) => {
+              setDraft({ ...fields, [spec.field]: event.target.value });
+              setFieldErrors((errors) => ({ ...errors, [spec.field]: undefined }));
+            },
+          };
+          return (
+            <div key={spec.field} className={`flex min-w-0 flex-col gap-1.5 ${spec.wide ? "col-span-full" : ""}`}>
+              <div className="flex items-baseline gap-1">
+                <Label htmlFor={id} className="text-sm font-semibold text-[var(--text-strong)]">{spec.label}</Label>
+                {spec.required && <span aria-hidden="true" className={requiredMarkClassName}>*</span>}
+              </div>
+              {spec.multiline
+                ? <Textarea {...control} className={`${inputClassName} min-h-[120px] resize-y px-4 py-3.5 leading-[1.5]`} />
+                : <div className="relative min-w-0">
+                  {spec.field === "place" && <MapPin aria-hidden="true" className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-[var(--text-muted)]" />}
+                  <Input {...control} inputMode={spec.unit ? "numeric" : undefined} className={`${inputClassName} ${spec.unit ? "pr-12" : ""} ${spec.field === "place" ? "pl-12" : ""}`} />
+                  {spec.unit && <span id={unitId} className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-base text-[var(--text-muted)]">{spec.unit}</span>}
+                </div>}
+              {hintId && <p id={hintId} className="text-[13px] text-[var(--text-muted)]">{pricePreview}</p>}
+              {error && <p id={`${id}-error`} role="alert" className="text-[13px] font-medium text-[var(--status-danger)]">{error}</p>}
+            </div>
+          );
+        })}
       </div>
       {failure?.type === "save" && <ErrorNotice message={failure.message} />}
       <div className="mt-1 flex justify-end border-t border-[var(--border-subtle)] pt-5">

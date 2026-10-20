@@ -15,7 +15,7 @@ import { Dialog, DialogClose, DialogDescription, DialogOverlay, DialogPortal, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError, apiFetch } from "@/lib/api";
-import { formatKstDateTime, parseClassInfo } from "@/lib/format";
+import { formatKstDateTime } from "@/lib/format";
 import { validateLookupInput } from "@/lib/rules";
 import { ERROR_MESSAGE, type BookingLookupResult, type FieldErrors } from "@/lib/types";
 
@@ -77,8 +77,7 @@ export function BookingLookup({ initialCode = "" }: { initialCode?: string }): J
   const busy = query.isFetching || mutation.isPending;
   const booking = query.isSuccess ? query.data : undefined;
   const notFound = query.error instanceof ApiError && query.error.code === "BOOKING_NOT_FOUND";
-  const { facts, body } = parseClassInfo(booking?.class.description ?? "");
-  const contact = facts.find((fact) => fact.key === "contact")?.value;
+  const contact = booking?.class.contact;
   const active = booking?.status === "pending" || booking?.status === "confirmed";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -237,8 +236,8 @@ export function BookingLookup({ initialCode = "" }: { initialCode?: string }): J
 
           <section aria-labelledby={`${prefix}-class-info`} className="space-y-4 border-t border-[var(--border-subtle)] pt-6">
             <h3 id={`${prefix}-class-info`} className="font-heading text-xl font-bold">클래스 안내·문의처</h3>
-            <ClassFacts facts={facts} />
-            {body && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{body}</p>}
+            <ClassFacts info={booking.class} />
+            {booking.class.description && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{booking.class.description}</p>}
           </section>
 
           {!active && (

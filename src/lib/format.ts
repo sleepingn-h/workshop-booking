@@ -1,3 +1,5 @@
+import type { ClassInfo, ClassListInfo } from "./types";
+
 const timeZone = "Asia/Seoul";
 
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
@@ -77,37 +79,32 @@ export function kstInputToIso(value: string): string {
   return isoToKstInput(iso) === value ? iso : "";
 }
 
-export type ClassFactKey = "place" | "duration" | "price" | "materials" | "contact";
+export type ClassFactKey = "duration" | "price" | "paymentMethod" | "contact" | "place" | "materials";
 export type ClassFact = { key: ClassFactKey; label: string; value: string };
 
-// 설명은 하나의 문자열로 저장하므로(R-53) 화면에서만 "라벨: 값" 줄을 안내 항목으로 나눈다.
-const classFactLabels: readonly { key: ClassFactKey; label: string; pattern: RegExp }[] = [
-  { key: "place", label: "장소", pattern: /^장소$/ },
-  { key: "duration", label: "소요 시간", pattern: /^소요시간$/ },
-  { key: "price", label: "비용·결제 방법", pattern: /^비용/ },
-  { key: "materials", label: "준비물", pattern: /^준비물$/ },
-  { key: "contact", label: "문의처", pattern: /^문의처?$/ },
-];
+export function formatDuration(minutes: number): string {
+  return `${minutes}분`;
+}
 
-export function parseClassInfo(description: string): { facts: ClassFact[]; body: string } {
-  const found = new Map<ClassFactKey, string>();
-  const bodyLines: string[] = [];
+// 비용이 0원이면 무료로 안내한다(PLAN 5절).
+export function formatPrice(price: number): string {
+  return price === 0 ? "무료" : `₩${price.toLocaleString("ko-KR")}`;
+}
 
-  for (const line of description.split(/\r?\n/)) {
-    const match = /^\s*([^:：]{1,20}?)\s*[:：]\s*(\S.*?)\s*$/.exec(line);
-    const label = match?.[1].replace(/\s+/g, "");
-    const fact = label ? classFactLabels.find(({ pattern }) => pattern.test(label)) : undefined;
-    if (match && fact && !found.has(fact.key)) found.set(fact.key, match[2]);
-    else bodyLines.push(line);
-  }
+export function formatClassListInfo(info: ClassListInfo): string {
+  return [info.place, formatDuration(info.durationMinutes), formatPrice(info.price)].join(" · ");
+}
 
-  return {
-    facts: classFactLabels.flatMap(({ key, label }) => {
-      const value = found.get(key);
-      return value ? [{ key, label, value }] : [];
-    }),
-    body: bodyLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
-  };
+// 판단에 먼저 쓰는 소요 시간·비용을 앞에 두고, 긴 값(장소·준비물)은 뒤에 둔다.
+export function classFacts(info: ClassInfo): ClassFact[] {
+  return [
+    { key: "duration", label: "소요 시간", value: formatDuration(info.durationMinutes) },
+    { key: "price", label: "비용 (1인)", value: formatPrice(info.price) },
+    { key: "paymentMethod", label: "결제 방법", value: info.paymentMethod },
+    { key: "contact", label: "문의처", value: info.contact },
+    { key: "place", label: "장소", value: info.place },
+    { key: "materials", label: "준비물", value: info.materials },
+  ];
 }
 
 export function formatPhone(phone: string): string {

@@ -19,7 +19,16 @@ const booking: BookingLookupResult = {
   code: "BK-TEST01",
   status: "pending",
   headcount: 2,
-  class: { title: "도자기 만들기", description: "장소: 서울 공방\n문의처: 02-123-4567" },
+  class: {
+    title: "도자기 만들기",
+    description: "물레로 컵을 만들어요.",
+    place: "서울 공방",
+    durationMinutes: 120,
+    price: 45000,
+    paymentMethod: "현장 결제",
+    materials: "없음",
+    contact: "02-123-4567",
+  },
   session: { startsAt: "2026-10-19T16:00:00Z", status: "scheduled" },
   canCancel: true,
   cancelDeadline: "2026-10-19T16:00:00Z",
@@ -158,7 +167,7 @@ describe("BookingLookup", () => {
     expect(await screen.findByText(BOOKING_STATUS_LABEL[status])).toBeVisible();
   });
 
-  it("R-31, R-33: 클래스 안내·인원·회차와 확정 예약의 취소 기한을 한국 시각으로 표시한다", async () => {
+  it("R-31, R-33, R-53: 클래스 소개·안내 항목·인원·회차와 확정 예약의 취소 기한을 한국 시각으로 표시한다", async () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValue({ ...booking, status: "confirmed", cancelDeadline: "2026-10-18T16:00:00Z" });
     renderLookup();
@@ -169,6 +178,9 @@ describe("BookingLookup", () => {
     expect(screen.getByText(/10월 19일 \(월\) 오전 1:00/)).toBeVisible();
     expect(screen.getByText("2명")).toBeVisible();
     expect(screen.getByText("서울 공방")).toBeVisible();
+    expect(screen.getByText("₩45,000")).toBeVisible();
+    expect(screen.getByText("현장 결제")).toBeVisible();
+    expect(screen.getByText("물레로 컵을 만들어요.")).toBeVisible();
     expect(screen.getByRole("link", { name: "02-123-4567" })).toHaveAttribute("href", "tel:021234567");
     expect(screen.getByText(/한국 시각 기준/)).toBeVisible();
     expect(screen.getByText(/직접 취소 기한/)).toBeVisible();
@@ -237,16 +249,17 @@ describe("BookingLookup", () => {
     expect(details.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("R-33, R-58: 다시 조회로 최신 상태와 클래스 설명을 갱신한다", async () => {
+  it("R-33, R-58: 다시 조회로 최신 상태와 클래스 안내 항목을 갱신한다", async () => {
     const user = userEvent.setup();
     renderLookup();
     await submitLookup(user);
     await screen.findByText("승인 대기");
-    apiMock.mockResolvedValue({ ...booking, status: "confirmed", class: { ...booking.class, description: "변경된 문의처: 02-987-6543" } });
+    apiMock.mockResolvedValue({ ...booking, status: "confirmed", class: { ...booking.class, contact: "02-987-6543", materials: "앞치마" } });
     await user.click(screen.getByRole("button", { name: "다시 조회" }));
 
     expect(await screen.findByText("참여 확정")).toBeVisible();
-    expect(screen.getByText("변경된 문의처: 02-987-6543")).toBeVisible();
+    expect(screen.getByRole("link", { name: "02-987-6543" })).toBeVisible();
+    expect(screen.getByText("앞치마")).toBeVisible();
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 

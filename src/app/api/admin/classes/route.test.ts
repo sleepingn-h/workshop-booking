@@ -13,7 +13,7 @@ const listAdminClassesMock = vi.mocked(listAdminClasses);
 const now = new Date("2026-10-17T03:00:00.123Z");
 const url = "https://example.test/api/admin/classes";
 const id = "11111111-1111-4111-8111-111111111111";
-const input = { title: " 도자기 클래스 ", description: "장소·비용·준비물·문의 안내" };
+const input = { title: " 도자기 클래스 ", description: "물레로 컵을 만들어요.", place: "가상 공방", durationMinutes: 120, price: 45000, paymentMethod: "현장 결제", materials: "없음", contact: "02-000-0000" };
 
 function authenticatedRequest(method = "GET", body?: string): Request {
   return new Request(url, {
@@ -71,6 +71,9 @@ describe("/api/admin/classes", () => {
     const classes: AdminClassSummary[] = [true, false].map((isPublished) => ({
       id: isPublished ? id : "22222222-2222-4222-8222-222222222222",
       title: "도자기 클래스",
+      place: "가상 공방",
+      durationMinutes: 120,
+      price: 45000,
       imageUrl: null,
       isPublished,
       upcomingSessionCount: 2,
