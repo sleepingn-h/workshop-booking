@@ -234,7 +234,7 @@ describe("AdminClassForm 수정", () => {
     expect(screen.getByText("비공개 클래스는 목록에 나오지 않고 링크로도 신청할 수 없어요.")).toBeVisible();
   });
 
-  it("R-53, R-58: 정리한 이름·소개·안내 항목을 PATCH하고 운영자 쿼리와 토스트를 갱신한다", async () => {
+  it("R-53, R-58: 정리한 이름·소개·안내 항목을 PATCH하고 운영자 쿼리와 토스트를 갱신한 뒤 클래스 목록으로 이동한다", async () => {
     const user = userEvent.setup(); const client = await renderEdit();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     await user.clear(screen.getByLabelText("클래스명"));
@@ -249,11 +249,10 @@ describe("AdminClassForm 수정", () => {
       json: { title: "새 도자기", description: detail.description, ...info, durationMinutes: 150 },
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] });
-    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("새 도자기"));
-    expect(screen.getByLabelText("클래스명")).toHaveValue("새 도자기");
+    expect(router.push).toHaveBeenCalledWith("/admin/classes");
   });
 
-  it("수정 실패 시 이름·소개 입력과 서버 사유를 유지한다", async () => {
+  it("수정 실패 시 목록으로 이동하지 않고 이름·소개 입력과 서버 사유를 유지한다", async () => {
     const user = userEvent.setup(); await renderEdit();
     await user.type(screen.getByLabelText("클래스명"), " 수정");
     await user.type(screen.getByLabelText("소개"), " 추가 소개");
@@ -263,6 +262,7 @@ describe("AdminClassForm 수정", () => {
     expect(screen.getByLabelText("클래스명")).toHaveValue(`${detail.title} 수정`);
     expect(screen.getByLabelText("소개")).toHaveValue(`${detail.description} 추가 소개`);
     expect(toast.success).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it("서버의 필드 오류도 해당 입력에 연결한다", async () => {
@@ -272,6 +272,7 @@ describe("AdminClassForm 수정", () => {
     expect(await screen.findByText("이름을 다시 확인해 주세요.")).toBeVisible();
     expect(screen.getByLabelText("클래스명")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("문의처")).toHaveAccessibleDescription("문의처를 다시 확인해 주세요.");
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it.each([false, true])("R-52, R-57: 공개 %s 상태의 스위치는 확인 없이 반대 값만 PATCH하고 처리 중에는 비활성이다", async (isPublished) => {
@@ -292,6 +293,7 @@ describe("AdminClassForm 수정", () => {
     await waitFor(() => expect(control).toBeEnabled());
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] });
     expect(screen.getByRole("heading", { level: 1 }).parentElement).toHaveTextContent(isPublished ? "비공개" : "공개 중");
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it("공개 전환 실패 시 서버 사유를 표시하고 저장된 상태로 되돌린다", async () => {
@@ -348,6 +350,7 @@ describe("AdminClassForm 수정", () => {
     expect((upload[1]!.body as FormData).get("image")).toBe(file);
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] }));
     expect(toast.success).toHaveBeenCalledWith("대표 이미지를 바꿨어요");
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it("업로드 중 버튼을 비활성화하고 실패 시 서버 사유와 미저장 입력을 유지한다", async () => {

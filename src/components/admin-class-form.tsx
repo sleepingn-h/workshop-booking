@@ -133,7 +133,8 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
       if (change.type === "save") {
         toast.success(classId ? "저장했어요" : "비공개 클래스를 만들었어요");
         if (result?.imageFailed) toast.error(imageRetryMessage);
-        if (result) router.push(`/admin/classes/${encodeURIComponent(result.id)}`);
+        // 새 클래스는 회차를 이어서 추가하도록 편집 화면으로, 수정은 반영된 목록으로 돌아간다.
+        router.push(result ? `/admin/classes/${encodeURIComponent(result.id)}` : "/admin/classes");
       } else if (change.type === "image") {
         toast.success("대표 이미지를 바꿨어요");
       } else if (change.type === "delete") {
