@@ -161,7 +161,10 @@ export type BookingLookupResult = {
   code: string;
   status: BookingStatus;
   headcount: number;
-  class: { title: string; description: string } & ClassInfo;
+  // 신청자 이름·전화번호는 서버에서 가린 값이다(예: 이*윤, 010-****-7890).
+  customer: { name: string; phone: string };
+  // id는 상세 링크용이며 비공개 클래스는 상세가 404이므로 null이다.
+  class: { id: string | null; title: string } & ClassInfo;
   session: { startsAt: string; status: SessionStatus };
   canCancel: boolean;
   cancelDeadline: string | null;

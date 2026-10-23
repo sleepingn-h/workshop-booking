@@ -6,12 +6,15 @@ import {
   formatDuration,
   formatKstDate,
   formatKstDateTime,
+  formatKstSchedule,
   formatKstTime,
   formatPhone,
   formatPrice,
   formatStartsIn,
   isoToKstInput,
   kstInputToIso,
+  maskName,
+  maskPhone,
 } from "./format";
 
 describe("한국 시각 표시", () => {
@@ -49,6 +52,20 @@ describe("한국 시각 표시", () => {
       expect(formatKstTime(value)).toBe("");
     },
   );
+});
+
+describe("R-33 회차 일시 표시", () => {
+  it("R-33 시작 시각에 소요 시간을 더한 종료 시각을 같은 날짜 뒤에 잇는다", () => {
+    expect(formatKstSchedule("2026-10-23T09:00:00Z", 120)).toBe("10월 23일 (금) 오후 6:00–오후 8:00");
+  });
+
+  it("R-33 종료 시각이 다음 날이면 종료 날짜도 표시한다", () => {
+    expect(formatKstSchedule("2026-10-23T14:00:00Z", 90)).toBe("10월 23일 (금) 오후 11:00–10월 24일 (토) 오전 12:30");
+  });
+
+  it("R-33 잘못된 시작 시각은 빈 문자열로 표시한다", () => {
+    expect(formatKstSchedule("invalid", 60)).toBe("");
+  });
 });
 
 describe("한국 시각 datetime-local 변환", () => {
@@ -170,5 +187,27 @@ describe("시작까지 남은 시간 표시", () => {
 
   it("잘못된 시각은 표시하지 않는다", () => {
     expect(formatStartsIn("invalid", now)).toBeNull();
+  });
+});
+
+describe("R-33 신청자 가림 표시", () => {
+  it.each([
+    ["이지윤", "이*윤"],
+    ["남궁민수", "남**수"],
+    ["김민", "김*"],
+    ["이", "*"],
+    ["가상예약자01", "가*****1"],
+  ])("R-33 이름 %s는 첫·마지막 글자 외를 가려 %s로 표시한다", (value, expected) => {
+    expect(maskName(value)).toBe(expected);
+  });
+
+  it.each([
+    ["01012347890", "010-****-7890"],
+    ["0212345678", "02-****-5678"],
+    ["021234567", "02-***-4567"],
+    ["0311234567", "031-***-4567"],
+    ["12345", "*2345"],
+  ])("R-33 전화번호 %s는 가운데 자리를 가려 %s로 표시한다", (value, expected) => {
+    expect(maskPhone(value)).toBe(expected);
   });
 });

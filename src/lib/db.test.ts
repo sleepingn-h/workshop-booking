@@ -490,15 +490,22 @@ describe("고객 예약 조회와 취소", () => {
     expect(client.rpc).not.toHaveBeenCalled();
   });
 
-  it("R-30 R-52 R-58 비공개 클래스의 최신 소개·안내 항목을 반환하며 예약자 전화번호·내부 id를 포함하지 않는다", async () => {
+  it("R-30 R-33 R-52 R-58 비공개 클래스의 최신 안내 항목과 가린 신청자를 반환하며 소개·전체 이름·전화번호·내부 id를 포함하지 않는다", async () => {
     queueLookup({}, {}, { is_published: false, description: "변경된 소개", contact: "02-123-4567" });
     await expect(db.lookupBooking(credentials)).resolves.toEqual({
       code: booking.code, status: "pending", headcount: 2,
-      class: { title: workshop.title, description: "변경된 소개", ...classInfo, contact: "02-123-4567" },
+      customer: { name: "가***자", phone: "010-****-0001" },
+      class: { id: null, title: workshop.title, ...classInfo, contact: "02-123-4567" },
       session: { startsAt: session.starts_at, status: "scheduled" },
       canCancel: true, cancelDeadline: session.starts_at,
     });
+    expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("customer_name"));
     expect(client.queries[0].chain.eq).toHaveBeenCalledWith("code", "BK-DEMO01");
+  });
+
+  it("R-30 R-52 공개 클래스의 예약 조회는 상세 링크용 클래스 id를 포함한다", async () => {
+    queueLookup();
+    await expect(db.lookupBooking(credentials)).resolves.toMatchObject({ class: { id: classId, title: workshop.title } });
   });
 
   it("R-30 R-42 R-54 취소된 숨김 회차의 최종 예약도 조회할 수 있다", async () => {
@@ -522,13 +529,13 @@ describe("고객 예약 조회와 취소", () => {
     const starts_at = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
     const transition = vi.spyOn(rules, "canTransition");
     queueLookup({ status: "confirmed" }, { starts_at });
-    queueLookup({ status: "cancelled" }, { starts_at }, { description: "취소 후 최신 설명" });
+    queueLookup({ status: "cancelled" }, { starts_at }, { contact: "02-999-0000" });
     client.rpc.mockImplementationOnce(async () => {
       vi.setSystemTime("2026-10-25T00:00:00Z");
       return { data: null, error: null };
     });
 
-    await expect(db.cancelBookingByCustomer(credentials.code, { phoneLast4: "0001" })).resolves.toMatchObject({ status: "cancelled", canCancel: false, cancelDeadline: null, class: { description: "취소 후 최신 설명" } });
+    await expect(db.cancelBookingByCustomer(credentials.code, { phoneLast4: "0001" })).resolves.toMatchObject({ status: "cancelled", canCancel: false, cancelDeadline: null, class: { contact: "02-999-0000" } });
     expect(client.rpc).toHaveBeenCalledExactlyOnceWith("customer_cancel_booking", { p_code: "BK-DEMO01", p_phone_last4: "0001", p_now: now.toISOString() });
     expect(transition.mock.calls).toHaveLength(2);
     expect(transition.mock.calls[0][3].now).toEqual(now);

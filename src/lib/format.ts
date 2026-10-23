@@ -60,6 +60,15 @@ export function formatStartsIn(startsAt: string | Date, now: Date): string | nul
   return `${Math.floor(diff / HOUR)}시간 후 시작`;
 }
 
+// 회차 일시는 시작 시각에 소요 시간을 더한 종료 시각까지 잇는다. 날짜가 바뀌면 종료 날짜도 쓴다(R-33).
+export function formatKstSchedule(startsAt: string | Date, durationMinutes: number): string {
+  const start = parseDate(startsAt);
+  if (!start) return "";
+  const end = new Date(start.getTime() + durationMinutes * MINUTE);
+  const endText = formatKstDate(end) === formatKstDate(start) ? formatKstTime(end) : formatKstDateTime(end);
+  return `${formatKstDateTime(start)}–${endText}`;
+}
+
 export function isoToKstInput(iso: string): string {
   const date = parseDate(iso);
   if (!date) return "";
@@ -114,4 +123,20 @@ export function formatPhone(phone: string): string {
   if (digits.startsWith("02") && digits.length === 9) return `02-${digits.slice(2, 5)}-${digits.slice(5)}`;
   if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   return phone;
+}
+
+// 고객 조회에 쓰는 신청자 이름은 첫·마지막 글자만 남긴다. 두 글자면 첫 글자만, 한 글자면 모두 가린다(R-33).
+export function maskName(name: string): string {
+  const chars = Array.from(name.trim());
+  if (chars.length <= 1) return "*".repeat(chars.length);
+  if (chars.length === 2) return `${chars[0]}*`;
+  return `${chars[0]}${"*".repeat(chars.length - 2)}${chars[chars.length - 1]}`;
+}
+
+// 하이픈으로 나뉘는 전화번호는 가운데 자리를, 나뉘지 않으면 뒷자리 4자리 외를 가린다(R-33).
+export function maskPhone(phone: string): string {
+  const parts = formatPhone(phone).split("-");
+  if (parts.length === 3) return [parts[0], "*".repeat(parts[1].length), parts[2]].join("-");
+  const digits = phone.replace(/\D/g, "");
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
 }

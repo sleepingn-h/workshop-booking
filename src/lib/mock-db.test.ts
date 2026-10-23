@@ -144,14 +144,15 @@ describe("고객 클래스 조회", () => {
 });
 
 describe("고객 예약 조회", () => {
-  it("R-30 BK-DEMO01의 조회 입력을 정규화하고 개인정보 없는 DTO를 반환한다", () => {
+  it("R-30 R-33 BK-DEMO01의 조회 입력을 정규화하고 신청자 이름·전화번호를 가린 DTO를 반환한다", () => {
     expect(db.mockLookupBooking({ code: " bk-demo01 ", phoneLast4: "0001" }, now)).toEqual({
       code: "BK-DEMO01",
       status: "pending",
       headcount: 2,
+      customer: { name: "가*****1", phone: "010-****-0001" },
       class: {
+        id: potteryId,
         title: "손으로 빚는 도자기 컵",
-        description: db.mockGetPublishedClass(potteryId, now)!.description,
         ...potteryInfo,
         paymentMethod: "현장 결제",
         materials: "없음",
@@ -207,7 +208,7 @@ describe("고객 예약 조회", () => {
 
   it("R-42 R-52 비공개 클래스와 취소된 회차의 기존 예약을 조회할 수 있다", () => {
     expect(db.mockLookupBooking(credentials(11), now)).toMatchObject({
-      class: { title: "향을 고르는 캔들 클래스" }, status: "pending", canCancel: true,
+      class: { id: null, title: "향을 고르는 캔들 클래스" }, status: "pending", canCancel: true,
     });
     expect(db.mockLookupBooking(credentials(7), now)).toMatchObject({
       session: { status: "cancelled" }, status: "cancelled", canCancel: false,

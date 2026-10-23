@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { maskName, maskPhone } from "./format";
 import {
   isMockDb,
   mockGetAdminClass,
@@ -79,6 +80,7 @@ type BookingRow = {
   code: string;
   session_id: string;
   headcount: number;
+  customer_name: string;
   phone: string;
   status: BookingStatus;
 };
@@ -87,7 +89,6 @@ type SessionStatsRow = { session_id: string; occupied: number };
 type AdminSessionStatsRow = SessionStatsRow & { booking_count: number };
 type AdminClassRow = ClassRow & { sessions: Pick<SessionRow, "id" | "starts_at" | "status">[] };
 type AdminBookingRow = BookingRow & {
-  customer_name: string;
   class_title: string;
   session_starts_at: string;
   session_status: SessionStatus;
@@ -106,7 +107,7 @@ type CustomerBooking = {
 
 const CLASS_COLUMNS = "id,title,description,place,duration_minutes,price,payment_method,materials,contact,image_url,is_published";
 const SESSION_COLUMNS = "id,class_id,starts_at,capacity,status";
-const BOOKING_COLUMNS = "id,code,session_id,headcount,phone,status";
+const BOOKING_COLUMNS = "id,code,session_id,headcount,customer_name,phone,status";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CLASS_INPUT_COLUMNS: Record<keyof ClassInput, keyof ClassRow> = {
   title: "title",
@@ -216,7 +217,12 @@ function toBookingLookupResult(
     code: booking.code,
     status: booking.status,
     headcount: booking.headcount,
-    class: { title: workshop.title, description: workshop.description, ...toClassInfo(workshop) },
+    customer: { name: maskName(booking.customer_name), phone: maskPhone(booking.phone) },
+    class: {
+      id: workshop.is_published ? workshop.id : null,
+      title: workshop.title,
+      ...toClassInfo(workshop),
+    },
     session: { startsAt: session.starts_at, status: session.status },
     canCancel: canTransition(booking.status, "cancel", "customer", { startsAt, now }).ok,
     cancelDeadline: customerCancelDeadline(booking.status, startsAt)?.toISOString() ?? null,

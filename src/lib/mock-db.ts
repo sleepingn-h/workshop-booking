@@ -1,5 +1,6 @@
 import "server-only";
 
+import { maskName, maskPhone } from "./format";
 import {
   canTransition,
   customerCancelDeadline,
@@ -274,7 +275,12 @@ export function mockLookupBooking(input: unknown, now: Date): BookingLookupResul
     code: booking.code,
     status: booking.status,
     headcount: booking.headcount,
-    class: { title: workshop.title, description: workshop.description, ...classInfo(workshop) },
+    customer: { name: maskName(booking.customerName), phone: maskPhone(booking.phone) },
+    class: {
+      id: workshop.isPublished ? workshop.id : null,
+      title: workshop.title,
+      ...classInfo(workshop),
+    },
     session: { startsAt: session.startsAt, status: session.status },
     canCancel: canTransition(booking.status, "cancel", "customer", { startsAt, now }).ok,
     cancelDeadline: customerCancelDeadline(booking.status, startsAt)?.toISOString() ?? null,
