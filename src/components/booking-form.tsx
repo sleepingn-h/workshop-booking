@@ -167,13 +167,7 @@ export function BookingForm({
       aria-busy={mutation.isPending}
       className="flex min-w-0 flex-col gap-6 rounded-[var(--radius-card)] bg-[var(--surface-card)] p-7 shadow-[var(--shadow-card)] max-[901px]:pb-32 max-[641px]:p-6 max-[641px]:pb-32 min-[901px]:sticky min-[901px]:top-[92px] min-[901px]:self-start"
     >
-      <div className="space-y-3">
-        <h2 className="font-heading text-xl font-bold text-[var(--text-strong)]">예약 신청</h2>
-        <p className={noticeClassName}>
-          <Info aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-[var(--color-primary)]" />
-          <span>운영자가 확인 후 승인합니다. 신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다. 결과는 예약 조회에서 직접 확인해 주세요.</span>
-        </p>
-      </div>
+      <h2 className="font-heading text-xl font-bold text-[var(--text-strong)]">예약 신청</h2>
 
       {errorCode === "SESSION_FULL" && (
         <p role="status" className={noticeClassName}>남은 자리가 바뀌었습니다. 회차와 인원을 다시 확인해 주세요.</p>
@@ -186,10 +180,7 @@ export function BookingForm({
         aria-invalid={Boolean(fieldErrors.sessionId)}
         className="min-w-0"
       >
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <legend id={`${prefix}-sessions-label`} className={`${labelClassName} float-left`}>회차</legend>
-          <span className="text-[13px] text-[var(--text-muted)]">모든 일정은 한국 시각 기준입니다.</span>
-        </div>
+        <legend id={`${prefix}-sessions-label`} className={`${labelClassName} float-left mb-2`}>회차</legend>
         <div ref={sessionsRef} className="clear-both flex flex-col gap-2">
           {sessions.map((session) => (
             <label key={session.id} className="block min-w-0">
@@ -205,7 +196,7 @@ export function BookingForm({
                 }}
                 className="peer sr-only"
               />
-              <span className="flex min-h-16 min-w-0 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] border-2 border-[var(--border-input)] px-4 py-3 text-[var(--text-strong)] transition-[border-color,background-color,transform] duration-120 hover:border-[var(--color-blurple-400)] active:scale-[.98] peer-checked:border-[var(--color-primary)] peer-checked:bg-[var(--color-blurple-50)] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--focus-ring)] peer-disabled:cursor-not-allowed peer-disabled:border-[var(--surface-raised)] peer-disabled:bg-[var(--surface-raised)] peer-disabled:text-[var(--text-control-disabled)]">
+              <span className="flex min-h-16 min-w-0 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] border-2 border-[var(--border-input)] px-4 py-3 text-[var(--text-strong)] transition-[border-color,background-color,transform] duration-120 peer-enabled:hover:border-[var(--color-blurple-400)] active:scale-[.98] peer-checked:border-[var(--color-primary)] peer-checked:bg-[var(--color-blurple-50)] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--focus-ring)] peer-disabled:cursor-not-allowed peer-disabled:border-[var(--surface-raised)] peer-disabled:bg-[var(--surface-raised)] peer-disabled:text-[var(--text-control-disabled)]">
                 <span className="min-w-0">
                   <span className="block font-heading text-base leading-[1.3] font-bold">{formatKstDate(session.startsAt)}</span>
                   <span className="mt-0.5 block text-sm text-[var(--text-muted)] peer-disabled:text-inherit">{formatKstTime(session.startsAt)}</span>
@@ -258,7 +249,7 @@ export function BookingForm({
         </div>
         {headcountError
           ? <p id={`${prefix}-headcount-error`} className={fieldErrorClassName}>{headcountError}</p>
-          : <p className={hintClassName}>한 번에 {MIN_HEADCOUNT}~{MAX_HEADCOUNT}명까지 신청할 수 있습니다.</p>}
+          : <p className={hintClassName}>최대 {MAX_HEADCOUNT}명까지 신청 가능</p>}
       </div>
 
       <div className="flex min-w-0 flex-col gap-1.5">
@@ -324,9 +315,15 @@ export function BookingForm({
       )}
 
       <div className="space-y-3">
-        <p className="text-[13px] leading-[1.45] text-[var(--text-muted)]">
-          취소 기한: 승인 대기는 시작 전까지, 참여 확정은 시작 24시간 전까지(정각 포함) 예약 조회에서 직접 취소할 수 있습니다.
-        </p>
+        <div className={noticeClassName}>
+          <Info aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-[var(--color-magenta-600)]" />
+          <div className="min-w-0 space-y-1 break-words">
+            <p>운영자가 확인 후 승인합니다.</p>
+            <p>신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다.</p>
+            <p>결과는 예약 조회에서 직접 확인해 주세요.</p>
+            <p>취소 기한: 승인 대기는 시작 전까지, 참여 확정은 시작 24시간 전까지(정각 포함) 예약 조회에서 직접 취소할 수 있습니다.</p>
+          </div>
+        </div>
         <div className="max-[901px]:fixed max-[901px]:inset-x-0 max-[901px]:bottom-0 max-[901px]:z-20 max-[901px]:border-t max-[901px]:border-[var(--border-subtle)] max-[901px]:bg-[var(--surface-card)] max-[901px]:px-4 max-[901px]:pt-3 max-[901px]:pb-[max(20px,env(safe-area-inset-bottom))]">
           <Button
             type="submit"

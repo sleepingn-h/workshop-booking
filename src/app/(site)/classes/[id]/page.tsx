@@ -77,18 +77,19 @@ export default async function ClassPage({ params }: PageProps<"/classes/[id]">) 
               </div>
             )}
           </div>
-          <h1 className="font-heading text-[44px] leading-[1.15] font-extrabold tracking-[-.01em] [overflow-wrap:anywhere] max-[641px]:text-[30px]">
-            {workshop.title}
-          </h1>
-          <ClassFacts info={workshop} />
-          {workshop.description && (
-            <section aria-labelledby="class-body-heading" className="space-y-3">
-              <h2 id="class-body-heading" className="font-heading text-[28px] leading-[1.2] font-bold max-[641px]:text-2xl">클래스 안내</h2>
+          <div className="space-y-4">
+            <h1 className="font-heading text-[44px] leading-[1.15] font-extrabold tracking-[-.01em] [overflow-wrap:anywhere] max-[641px]:text-[30px]">
+              {workshop.title}
+            </h1>
+            {workshop.description && (
               <p className="max-w-[65ch] text-base leading-relaxed whitespace-pre-line text-[var(--text-body)] [overflow-wrap:anywhere]">
                 {workshop.description}
               </p>
-            </section>
-          )}
+            )}
+          </div>
+          <div className="border-t border-[var(--border-subtle)] pt-8">
+            <ClassFacts info={workshop} />
+          </div>
         </article>
 
         <BookingForm classId={workshop.id} sessions={workshop.sessions} contact={workshop.contact} />

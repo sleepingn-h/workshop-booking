@@ -75,7 +75,7 @@ describe("BookingForm", () => {
     expect(within(group).getByText("4자리 남음")).toBeVisible();
     expect(within(group).getByText("2자리 남음")).toBeVisible();
     expect(within(group).getByText("마감")).toBeVisible();
-    expect(screen.getByText(/한국 시각/)).toBeVisible();
+    expect(screen.queryByText(/한국 시각 기준/)).not.toBeInTheDocument();
   });
 
   it("R-54: 마감 회차를 선택할 수 없다", async () => {
@@ -103,6 +103,7 @@ describe("BookingForm", () => {
     renderForm();
 
     expect(within(headcountGroup()).getByText("1명")).toBeVisible();
+    expect(screen.getByText("최대 4명까지 신청 가능")).toBeVisible();
     expect(screen.getByRole("button", { name: "인원 줄이기" })).toBeDisabled();
     for (let count = 1; count < 4; count += 1) await user.click(screen.getByRole("button", { name: "인원 늘리기" }));
     expect(within(headcountGroup()).getByText("4명")).toBeVisible();
@@ -162,16 +163,22 @@ describe("BookingForm", () => {
     expectInputsPreserved("3");
   });
 
-  it("R-10, R-31: 수동 승인 방식은 회차 목록보다 먼저, 상태별 취소 기한은 신청 버튼 가까이 안내한다", () => {
+  it("R-10, R-31: 수동 승인 방식과 상태별 취소 기한을 신청 버튼 바로 위 안내 상자에 줄을 나눠 안내한다", () => {
     renderForm();
 
-    const approval = screen.getByText(/신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다/);
-    expect(approval).toBeVisible();
-    expect(approval).toHaveTextContent("결과는 예약 조회에서 직접 확인해 주세요.");
-    expect(approval.compareDocumentPosition(screen.getByRole("radiogroup")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const deadline = screen.getByText(/승인 대기는 시작 전까지/);
-    expect(deadline).toHaveTextContent(/참여 확정은 시작 24시간 전까지/);
-    expect(deadline.compareDocumentPosition(screen.getByRole("button", { name: "예약 신청하기" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const lines = [
+      "운영자가 확인 후 승인합니다.",
+      "신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다.",
+      "결과는 예약 조회에서 직접 확인해 주세요.",
+      "취소 기한: 승인 대기는 시작 전까지, 참여 확정은 시작 24시간 전까지(정각 포함) 예약 조회에서 직접 취소할 수 있습니다.",
+    ].map((text) => screen.getByText(text));
+    const notice = lines[0].parentElement!;
+    for (const line of lines) {
+      expect(line).toBeVisible();
+      expect(line.parentElement).toBe(notice);
+    }
+    expect(screen.getByLabelText("전화번호").compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.compareDocumentPosition(screen.getByRole("button", { name: "예약 신청하기" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("신청 중에는 버튼을 비활성화하고 중복 제출을 막는다", async () => {

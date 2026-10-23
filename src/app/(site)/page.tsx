@@ -57,7 +57,6 @@ export default async function Home() {
         <p className="max-w-[56ch] text-lg leading-[1.55] text-[var(--text-body)] max-[641px]:text-base">
           마음에 드는 클래스의 일정과 남은 자리를 확인하고 회원가입 없이 신청해 주세요. 운영자가 확인한 뒤 참여가 확정됩니다.
         </p>
-        <p className="text-sm text-[var(--text-muted)]">모든 일정은 한국 시각 기준입니다.</p>
       </div>
 
       {classes.length === 0 ? (
