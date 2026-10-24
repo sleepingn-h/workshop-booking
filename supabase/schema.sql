@@ -13,6 +13,7 @@ drop function if exists public.delete_session(uuid);
 drop function if exists public.cancel_session(uuid);
 drop function if exists public.delete_class(uuid);
 drop function if exists public.set_class_published(uuid, boolean);
+drop function if exists public.set_class_published(uuid, boolean, timestamptz);
 drop view if exists public.session_stats;
 drop table if exists public.bookings cascade;
 drop table if exists public.sessions cascade;
@@ -550,7 +551,7 @@ begin
 end;
 $$;
 
-create function set_class_published(p_class_id uuid, p_is_published boolean)
+create function set_class_published(p_class_id uuid, p_is_published boolean, p_now timestamptz)
 returns void
 language plpgsql
 security invoker
@@ -563,8 +564,15 @@ begin
   if not found then
     raise exception 'NOT_FOUND';
   end if;
-  if p_is_published is null then
+  if p_is_published is null or p_now is null then
     raise exception 'VALIDATION_ERROR';
+  end if;
+  -- R-59: 예정 회차(시작 전·미취소, 만석 포함)가 있어야 공개한다. 공개 후 회차가 없어지면 고객 조회에서 숨긴다.
+  if p_is_published and not exists (
+    select 1 from public.sessions as s
+    where s.class_id = p_class_id and s.status = 'scheduled' and s.starts_at > p_now
+  ) then
+    raise exception 'NO_UPCOMING_SESSIONS';
   end if;
 
   update public.classes as c
@@ -589,7 +597,7 @@ revoke execute on function update_session(uuid, timestamptz, integer, timestampt
 revoke execute on function delete_session(uuid) from public, anon, authenticated;
 revoke execute on function cancel_session(uuid) from public, anon, authenticated;
 revoke execute on function delete_class(uuid) from public, anon, authenticated;
-revoke execute on function set_class_published(uuid, boolean) from public, anon, authenticated;
+revoke execute on function set_class_published(uuid, boolean, timestamptz) from public, anon, authenticated;
 
 grant execute on function create_booking(uuid, integer, text, text, timestamptz) to service_role;
 grant execute on function customer_cancel_booking(text, text, timestamptz) to service_role;
@@ -600,7 +608,7 @@ grant execute on function update_session(uuid, timestamptz, integer, timestamptz
 grant execute on function delete_session(uuid) to service_role;
 grant execute on function cancel_session(uuid) to service_role;
 grant execute on function delete_class(uuid) to service_role;
-grant execute on function set_class_published(uuid, boolean) to service_role;
+grant execute on function set_class_published(uuid, boolean, timestamptz) to service_role;
 
 -- SAMPLE DATA
 -- 모든 이름·주소·전화번호는 시연용 가상 값이며 이미지 파일은 별도로 준비한다.
@@ -616,6 +624,7 @@ grant execute on function set_class_published(uuid, boolean) to service_role;
 -- BK-DEMO09 | 0009 | B 가죽·7일 후 | cancelled | 취소 상태·자리 복구
 -- BK-DEMO10 | 0010 | B 가죽·7일 후 | pending | 운영자 승인·거절·회차 취소
 -- BK-DEMO11 | 0011 | D 비공개 캔들·6일 후 | pending | 비공개 클래스 기존 예약 조회·취소
+-- C 꽃다발은 예정 회차가 없어 비공개로 둔다. 공개 전환 차단(R-59)과 클래스 삭제(R-50)를 시연한다.
 
 insert into public.classes (
   id, title, description, place, duration_minutes, price, payment_method, materials, contact, image_url, is_published
@@ -643,7 +652,7 @@ values
     '제철 꽃으로 작은 꽃다발을 만들어 바로 가져가요.',
     '가상 꽃 공방, 시연시 공방로 3 (가상 주소)', 90, 0, '결제 없음 (무료 클래스)', '꽃을 담아 갈 가방', '010-0000-9003 (시연용 가상 번호)',
     '/samples/class-3.jpg',
-    true
+    false
   ),
   (
     '10000000-0000-4000-8000-000000000004',
@@ -654,7 +663,6 @@ values
     false
   );
 
--- C 클래스는 회차가 없어 빈 회차 안내와 클래스 삭제(R-50)를 시연할 수 있다.
 insert into public.sessions (id, class_id, starts_at, capacity, status)
 values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', now() + interval '4 days', 6, 'scheduled'),

@@ -1,11 +1,12 @@
 "use client";
 
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, Paintbrush, Pencil, Plus } from "lucide-react";
+import { CircleAlert, Paintbrush, Pencil, Plus, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, type JSX } from "react";
+import { useEffect, useId, useState, type JSX } from "react";
 import { toast } from "sonner";
 
 import { ClassSummaryLine } from "@/components/class-facts";
@@ -13,23 +14,35 @@ import { LoadingPlaceholder } from "@/components/loading-placeholder";
 import { Tag } from "@/components/status-badge";
 import { ToggleSwitch } from "@/components/toggle-switch";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogDescription, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
 import { ApiError, apiFetch } from "@/lib/api";
 import { ERROR_MESSAGE, type AdminClassSummary } from "@/lib/types";
+
+const buttonClassName = "h-auto min-h-11 rounded-[var(--radius-card)] px-5 py-3 text-base font-medium whitespace-normal transition-[color,background-color,transform] duration-200 active:translate-y-0 active:scale-[.97]";
 
 function ClassRow({ workshop }: { workshop: AdminClassSummary }): JSX.Element {
   const router = useRouter();
   const queryClient = useQueryClient();
   const titleId = useId();
+  // 예정 회차가 없으면 공개하지 않고 회차 추가로 안내한다(R-59).
+  const [blockedOpen, setBlockedOpen] = useState(false);
   const mutation = useMutation({
     mutationFn: (isPublished: boolean) => apiFetch(`/api/admin/classes/${encodeURIComponent(workshop.id)}`, { method: "PATCH", json: { isPublished } }),
     // 재조회가 끝날 때까지 처리 중으로 두어 스위치가 이전 상태로 잠깐 돌아가지 않게 한다.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin"] }),
     onError: (error) => {
+      if (error instanceof ApiError && error.code === "NO_UPCOMING_SESSIONS") {
+        // 목록을 불러온 뒤 회차가 시작·취소된 경우라 예정 회차 수를 다시 조회한다.
+        setBlockedOpen(true);
+        void queryClient.invalidateQueries({ queryKey: ["admin"] });
+        return;
+      }
       toast.error(error instanceof ApiError ? error.message : ERROR_MESSAGE.INTERNAL_ERROR);
       if (error instanceof ApiError && error.status === 401) router.replace("/admin/login");
     },
   });
   const isPublished = mutation.isPending ? mutation.variables : workshop.isPublished;
+  const hidden = workshop.isPublished && workshop.upcomingSessionCount === 0;
 
   return (
     <li aria-labelledby={titleId} className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)_auto] items-center gap-5 rounded-[var(--radius-card)] bg-[var(--surface-card)] p-4 shadow-[var(--shadow-card)] max-[901px]:grid-cols-[88px_minmax(0,1fr)] max-[901px]:gap-3.5">
@@ -44,15 +57,34 @@ function ClassRow({ workshop }: { workshop: AdminClassSummary }): JSX.Element {
         <ClassSummaryLine info={workshop} className="text-[var(--text-muted)]" />
         <p className="text-sm text-[var(--text-body)]">
           <span>예정 회차 {workshop.upcomingSessionCount}개</span>
+          {hidden && <> · <b className="font-semibold text-[var(--status-danger)]">고객에게 보이지 않아요</b></>}
           {workshop.pendingCount > 0 && <> · <b className="font-semibold text-[var(--color-magenta-600)]">승인 대기 {workshop.pendingCount}건</b></>}
         </p>
       </div>
       <div className="flex items-center gap-4 max-[901px]:col-span-full max-[901px]:justify-between">
-        <ToggleSwitch label="공개" checked={isPublished} disabled={mutation.isPending} describedBy={titleId} onCheckedChange={(checked) => { if (!mutation.isPending) mutation.mutate(checked); }} />
+        <ToggleSwitch label="공개" checked={isPublished} disabled={mutation.isPending} describedBy={titleId} onCheckedChange={(checked) => {
+          if (mutation.isPending) return;
+          if (checked && workshop.upcomingSessionCount === 0) { setBlockedOpen(true); return; }
+          mutation.mutate(checked);
+        }} />
         <Link href={`/admin/classes/${encodeURIComponent(workshop.id)}`} aria-label={`${workshop.title} 편집`} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-button-sm)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--text-strong)] transition-colors duration-120 hover:bg-[var(--surface-sunk)] max-[901px]:min-h-11">
           <Pencil aria-hidden="true" className="size-4" />편집
         </Link>
       </div>
+      <Dialog open={blockedOpen} onOpenChange={setBlockedOpen}>
+        <DialogPortal>
+          <DialogOverlay className="bg-[var(--overlay-scrim)] supports-backdrop-filter:backdrop-blur-none data-open:animate-none data-closed:animate-none" />
+          <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[460px] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-[var(--radius-dialog)] bg-[var(--surface-card)] p-10 text-[var(--text-body)] shadow-[var(--shadow-raised)] outline-none max-[641px]:p-6">
+            <DialogTitle className="pr-12 font-heading text-[28px] leading-[1.15] font-extrabold max-[641px]:text-2xl">회차를 먼저 추가해 주세요</DialogTitle>
+            <DialogDescription className="text-base text-[var(--text-body)] [overflow-wrap:anywhere]"><b className="font-semibold text-[var(--text-strong)]">{workshop.title}</b>에 예정 회차가 없어 공개할 수 없어요. 회차를 추가한 뒤 공개로 바꿔 주세요.</DialogDescription>
+            <div className="flex flex-wrap justify-end gap-3">
+              <DialogClose render={<Button type="button" variant="ghost" className={`${buttonClassName} bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)]`} />}>돌아가기</DialogClose>
+              <Link href={`/admin/classes/${encodeURIComponent(workshop.id)}#add-session`} className={`${buttonClassName} inline-flex items-center justify-center gap-2 bg-[var(--color-primary)] text-[var(--text-on-ink)] hover:bg-[var(--color-primary-press)]`}><Plus aria-hidden="true" className="size-[18px]" />회차 추가하기</Link>
+            </div>
+            <DialogClose aria-label="닫기" render={<Button type="button" variant="ghost" className="absolute top-9 right-9 size-10 rounded-full bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)] max-[641px]:top-5 max-[641px]:right-5" />}><X aria-hidden="true" className="size-5" /></DialogClose>
+          </DialogPrimitive.Popup>
+        </DialogPortal>
+      </Dialog>
     </li>
   );
 }
@@ -75,7 +107,7 @@ export function AdminClassList(): JSX.Element {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 space-y-1.5">
           <h1 className="font-heading text-[36px] leading-[1.15] font-extrabold tracking-[-.01em]">클래스 관리</h1>
-          <p className="text-[var(--text-muted)]">새 클래스는 비공개로 만들어져요. 준비가 끝나면 공개로 바꾸세요.</p>
+          <p className="text-[var(--text-muted)]">새 클래스는 비공개로 만들어져요. 회차를 추가한 뒤 공개로 바꾸세요.</p>
         </div>
         <Link href="/admin/classes/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] px-5 py-3 font-medium text-[var(--text-on-ink)] transition-[color,background-color,transform] duration-200 hover:bg-[var(--color-primary-press)] active:scale-[.97]"><Plus aria-hidden="true" className="size-[18px]" />새 클래스</Link>
       </div>

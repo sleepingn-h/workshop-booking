@@ -15,8 +15,10 @@ import {
   canChangeStartsAt,
   canDeleteClass,
   canDeleteSession,
+  canPublishClass,
   canTransition,
   customerCancelDeadline,
+  isVisibleClass,
   isVisibleSession,
   normalizePhone,
   occupiedSeats,
@@ -82,6 +84,7 @@ describe("에러와 상태 계약", () => {
       CAPACITY_BELOW_OCCUPIED: 409,
       SESSION_HAS_BOOKINGS: 409,
       CLASS_HAS_SESSIONS: 409,
+      NO_UPCOMING_SESSIONS: 409,
       MOCK_READ_ONLY: 503,
       INTERNAL_ERROR: 500,
     };
@@ -642,6 +645,18 @@ describe("회차·클래스 관리 판정", () => {
   it("R-50 R-51 회차가 없는 클래스만 삭제할 수 있다", () => {
     expect(canDeleteClass(0)).toEqual({ ok: true });
     expect(canDeleteClass(1)).toEqual({ ok: false, code: "CLASS_HAS_SESSIONS" });
+  });
+
+  it("R-59 예정 회차가 하나 이상 있어야 공개할 수 있다", () => {
+    expect(canPublishClass(0)).toEqual({ ok: false, code: "NO_UPCOMING_SESSIONS" });
+    expect(canPublishClass(1)).toEqual({ ok: true });
+  });
+
+  it("R-52 R-59 공개 중이며 예정 회차가 있는 클래스만 고객에게 보인다", () => {
+    expect(isVisibleClass(true, 1)).toBe(true);
+    expect(isVisibleClass(true, 0)).toBe(false);
+    expect(isVisibleClass(false, 1)).toBe(false);
+    expect(isVisibleClass(false, 0)).toBe(false);
   });
 });
 

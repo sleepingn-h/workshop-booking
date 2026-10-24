@@ -83,8 +83,15 @@ describe("고객 클래스 조회", () => {
     expect(db.mockListPublishedClasses(now)).toEqual([
       { id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg" },
       { id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg" },
-      { id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg" },
     ]);
+  });
+
+  it("R-59 요청 시각에 예정 회차가 없어진 공개 클래스는 목록·상세에서 숨긴다", () => {
+    const afterLeather = new Date(at(7 * DAY));
+    expect(db.mockListPublishedClasses(new Date(at(6 * DAY))).map(({ id }) => id)).toEqual([leatherId]);
+    expect(db.mockListPublishedClasses(afterLeather)).toEqual([]);
+    expect(db.mockGetPublishedClass(potteryId, new Date(at(5 * DAY)))).toBeNull();
+    expect(db.mockGetPublishedClass(leatherId, afterLeather)).toBeNull();
   });
 
   it("R-53 모든 샘플 클래스는 소개와 안내 항목이 클래스 입력 검증을 통과한다", () => {
@@ -96,8 +103,8 @@ describe("고객 클래스 조회", () => {
     }
   });
 
-  it.each([candleId, "10000000-0000-4000-8000-999999999999", "invalid-id"])(
-    "R-52 비공개이거나 없는 클래스 %s의 고객 상세는 null이다",
+  it.each([candleId, flowerId, "10000000-0000-4000-8000-999999999999", "invalid-id"])(
+    "R-52 R-59 비공개이거나 없는 클래스 %s의 고객 상세는 null이다",
     (id) => expect(db.mockGetPublishedClass(id, now)).toBeNull(),
   );
 
@@ -110,7 +117,6 @@ describe("고객 클래스 조회", () => {
         { id: sessionId(2), startsAt: at(5 * DAY), capacity: 4, remaining: 0 },
       ],
     });
-    expect(db.mockGetPublishedClass(flowerId, now)).toMatchObject({ sessions: [] });
   });
 
   it("R-01 R-02 R-03 거절·취소 인원은 가죽 회차의 자리를 차지하지 않는다", () => {
@@ -127,7 +133,6 @@ describe("고객 클래스 조회", () => {
     expect(db.mockGetPublishedClass(potteryId, startsAt)?.sessions.map(({ id }) => id)).toEqual([
       sessionId(1), sessionId(2),
     ]);
-    expect(db.mockGetPublishedClass(potteryId, new Date(at(8 * DAY)))?.sessions).toEqual([]);
   });
 
   it("R-01 R-02 R-54 자리 계산과 표시 판정에 기존 순수 규칙을 재사용한다", () => {
@@ -204,6 +209,11 @@ describe("고객 예약 조회", () => {
     }
   });
 
+  it("R-30 R-59 예정 회차가 있는 공개 클래스만 상세 링크용 id를 주고, 없어지면 예약만 조회한다", () => {
+    expect(db.mockLookupBooking(credentials(1), now)).toMatchObject({ class: { id: potteryId } });
+    expect(db.mockLookupBooking(credentials(1), new Date(at(5 * DAY)))).toMatchObject({ code: "BK-DEMO01", class: { id: null, title: "손으로 빚는 도자기 컵" } });
+  });
+
   it("R-42 R-52 비공개 클래스와 취소된 회차의 기존 예약을 조회할 수 있다", () => {
     expect(db.mockLookupBooking(credentials(11), now)).toMatchObject({
       class: { id: null, title: "향을 고르는 캔들 클래스" }, status: "pending", canCancel: true,
@@ -277,7 +287,7 @@ describe("운영자 클래스 조회", () => {
   it("R-17 R-52 R-53 R-54 비공개 포함 4개 클래스를 최신 순으로 반환하고 장소·소요 시간·비용과 예정 회차·승인 대기를 센다", () => {
     expect(db.mockListAdminClasses(now)).toEqual([
       { id: candleId, title: "향을 고르는 캔들 클래스", ...candleInfo, imageUrl: "/samples/class-4.jpg", isPublished: false, upcomingSessionCount: 1, pendingCount: 1 },
-      { id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg", isPublished: true, upcomingSessionCount: 0, pendingCount: 0 },
+      { id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg", isPublished: false, upcomingSessionCount: 0, pendingCount: 0 },
       { id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg", isPublished: true, upcomingSessionCount: 1, pendingCount: 1 },
       { id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg", isPublished: true, upcomingSessionCount: 3, pendingCount: 3 },
     ]);

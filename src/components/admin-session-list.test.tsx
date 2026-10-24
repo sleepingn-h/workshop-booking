@@ -100,6 +100,45 @@ describe("AdminSessionList 조회", () => {
     expect(addForm()).toBeVisible();
   });
 
+  it("R-59: 주소가 #add-session이면 회차를 불러온 뒤 회차 추가의 시작 일시 칸으로 포커스를 옮긴다", async () => {
+    window.history.replaceState(null, "", "#add-session");
+    try {
+      apiMock.mockResolvedValueOnce({ ...detail, sessions: [] }); renderList();
+      const form = await screen.findByRole("form", { name: "회차 추가" });
+      expect(form).toHaveAttribute("id", "add-session");
+      await waitFor(() => expect(within(form).getByLabelText("시작 일시")).toHaveFocus());
+    } finally {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  });
+
+  it("주소에 #add-session이 없으면 포커스를 옮기지 않는다", async () => {
+    await ready();
+    expect(document.body).toHaveFocus();
+  });
+
+  it("R-59: 편집 화면에서 예정 회차가 없으면 공개 대신 회차 추가로 안내하고, 회차를 추가하면 공개할 수 있다", async () => {
+    const user = userEvent.setup();
+    let current: AdminClassDetail = { ...detail, sessions: [cancelled, past] };
+    apiMock.mockImplementation(async (_url, init) => {
+      if (init?.method === "POST") { current = { ...current, sessions: [...current.sessions, empty] }; return { id: empty.id }; }
+      return init?.method ? { ok: true } : current;
+    });
+    renderList(true);
+    await screen.findByRole("form", { name: "회차 추가" });
+    await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
+    const card = screen.getByRole("region", { name: "공개 설정" });
+    expect(within(card).getByRole("alert")).toHaveTextContent("예정 회차가 없어 공개할 수 없어요.");
+    expect(changes()).toEqual([]);
+    await user.click(within(card).getByRole("button", { name: "회차 추가하기" }));
+    expect(within(addForm()).getByLabelText("시작 일시")).toHaveFocus();
+    fillAdd();
+    await user.click(within(addForm()).getByRole("button", { name: "회차 추가" }));
+    await waitFor(() => expect(within(card).queryByRole("alert")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
+    expect(apiMock).toHaveBeenCalledWith(path, { method: "PATCH", json: { isPublished: true } });
+  });
+
   it("로딩과 조회 실패·재시도를 구분한다", async () => {
     let fail!: (error: Error) => void;
     apiMock.mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; })); renderList();

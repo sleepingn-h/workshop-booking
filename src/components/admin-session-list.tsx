@@ -27,12 +27,23 @@ const smallGhostClassName = `${smallClassName} bg-[var(--surface-raised)] text-[
 // 행 배치는 화면 폭이 아니라 회차 카드 폭(@container)을 따른다. 동작 열 폭을 고정해 버튼이 없는 행도 칸이 맞는다.
 const gridClassName = "grid min-w-0 grid-cols-[minmax(0,1fr)_120px_110px_232px] items-center gap-4 border-t border-[var(--border-subtle)] py-4 @max-[620px]:grid-cols-[minmax(0,1fr)_110px] @max-[620px]:gap-x-3 @max-[620px]:gap-y-2.5";
 const fieldsClassName = "grid min-w-0 grid-cols-[minmax(0,1fr)_140px_auto] items-start gap-3 @max-[620px]:grid-cols-1";
+// 공개가 막힌 클래스(R-59)를 회차 추가로 안내할 때 쓰는 주소 조각(#add-session)이자 추가 폼 id다.
+export const ADD_SESSION_ID = "add-session";
 type Fields = { startsAt: string; capacity: string };
 type SessionPatch = { startsAt?: string; capacity?: number };
 type Change = { type: "save"; patch: SessionPatch } | { type: "delete" } | { type: "cancel"; activeCount: number };
 
 function messageFor(error: unknown): string {
   return error instanceof ApiError ? error.message : ERROR_MESSAGE.INTERNAL_ERROR;
+}
+
+// 회차 추가의 첫 입력(시작 일시)으로 스크롤하고 포커스한다. 추가 폼이 아직 없으면 false다.
+export function focusAddSession(): boolean {
+  const input = document.getElementById(ADD_SESSION_ID)?.querySelector("input");
+  if (!input) return false;
+  input.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  input.focus({ preventScroll: true });
+  return true;
 }
 
 function ErrorNotice({ error }: { error: unknown }): JSX.Element {
@@ -92,7 +103,7 @@ function AddSessionForm({ classId }: { classId: string }): JSX.Element {
   }
 
   return (
-    <form aria-label="회차 추가" aria-busy={mutation.isPending} onSubmit={submit} noValidate className="min-w-0 space-y-3">
+    <form id={ADD_SESSION_ID} aria-label="회차 추가" aria-busy={mutation.isPending} onSubmit={submit} noValidate className="min-w-0 scroll-mt-[92px] space-y-3">
       {/* 카드가 좁으면 [시작 일시|정원] 아래 줄에 추가 버튼을 꽉 채운다. 버튼은 라벨 높이만큼 내려 입력칸과 맞춘다. */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_140px_auto] items-start gap-3 @max-[620px]:grid-cols-[minmax(0,1fr)_110px]">
         <SessionFields fields={fields} onChange={(value) => { setFields(value); setErrors({}); }} errors={errors} disabled={mutation.isPending} />
@@ -275,6 +286,11 @@ export function AdminSessionList({ classId }: { classId: string }): JSX.Element 
   useEffect(() => {
     if (query.error instanceof ApiError && query.error.status === 401) router.replace("/admin/login");
   }, [query.error, router]);
+  // 클래스 목록의 공개 차단 안내에서 왔으면(#add-session) 추가 폼이 그려진 뒤 한 번만 포커스한다.
+  const hasData = Boolean(query.data);
+  useEffect(() => {
+    if (hasData && window.location.hash === `#${ADD_SESSION_ID}`) focusAddSession();
+  }, [hasData]);
   const now = new Date();
   const sessions = query.data?.sessions.toSorted((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   const headingId = useId();

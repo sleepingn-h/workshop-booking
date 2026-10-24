@@ -18,6 +18,7 @@ export type ErrorCode =
   | "CAPACITY_BELOW_OCCUPIED"
   | "SESSION_HAS_BOOKINGS"
   | "CLASS_HAS_SESSIONS"
+  | "NO_UPCOMING_SESSIONS"
   | "MOCK_READ_ONLY"
   | "INTERNAL_ERROR";
 
@@ -36,6 +37,7 @@ export const ERROR_CODES: readonly ErrorCode[] = [
   "CAPACITY_BELOW_OCCUPIED",
   "SESSION_HAS_BOOKINGS",
   "CLASS_HAS_SESSIONS",
+  "NO_UPCOMING_SESSIONS",
   "MOCK_READ_ONLY",
   "INTERNAL_ERROR",
 ];
@@ -55,6 +57,7 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   CAPACITY_BELOW_OCCUPIED: 409,
   SESSION_HAS_BOOKINGS: 409,
   CLASS_HAS_SESSIONS: 409,
+  NO_UPCOMING_SESSIONS: 409,
   MOCK_READ_ONLY: 503,
   INTERNAL_ERROR: 500,
 };
@@ -74,6 +77,7 @@ export const ERROR_MESSAGE: Record<ErrorCode, string> = {
   CAPACITY_BELOW_OCCUPIED: "정원을 현재 차지된 자리보다 적게 줄일 수 없습니다.",
   SESSION_HAS_BOOKINGS: "예약 이력이 있는 회차는 삭제하거나 시작 시각을 변경할 수 없습니다.",
   CLASS_HAS_SESSIONS: "회차가 있는 클래스는 삭제할 수 없습니다.",
+  NO_UPCOMING_SESSIONS: "예정 회차가 없는 클래스는 공개할 수 없습니다. 회차를 먼저 추가해 주세요.",
   MOCK_READ_ONLY: "목 데이터 모드에서는 변경할 수 없습니다.",
   INTERNAL_ERROR: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
 };
@@ -160,7 +164,7 @@ export type BookingLookupResult = {
   headcount: number;
   // 신청자 이름·전화번호는 서버에서 가린 값이다(예: 이*윤, 010-****-7890).
   customer: { name: string; phone: string };
-  // id는 상세 링크용이며 비공개 클래스는 상세가 404이므로 null이다.
+  // id는 상세 링크용이며 비공개이거나 예정 회차가 없는 클래스는 상세가 404이므로 null이다(R-59).
   class: { id: string | null; title: string } & ClassInfo;
   session: { startsAt: string; status: SessionStatus };
   canCancel: boolean;

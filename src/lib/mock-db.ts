@@ -4,6 +4,7 @@ import { maskName, maskPhone } from "./format";
 import {
   canTransition,
   customerCancelDeadline,
+  isVisibleClass,
   isVisibleSession,
   normalizePhone,
   occupiedSeats,
@@ -73,7 +74,7 @@ const CLASSES: readonly SampleClass[] = [
     materials: "꽃을 담아 갈 가방",
     contact: "010-0000-9003 (시연용 가상 번호)",
     imageUrl: "/samples/class-3.jpg",
-    isPublished: true,
+    isPublished: false,
   },
   {
     id: "10000000-0000-4000-8000-000000000004",
@@ -204,6 +205,11 @@ function visibleSessions(id: string, now: Date): SampleSession[] {
     isVisibleSession({ status: session.status, startsAt: new Date(session.startsAt) }, now));
 }
 
+// 공개 중이어도 예정 회차가 없으면 고객 목록·상세·조회 링크에서 숨긴다(R-59).
+function isCustomerVisible(workshop: SampleClass, now: Date): boolean {
+  return isVisibleClass(workshop.isPublished, visibleSessions(workshop.id, now).length);
+}
+
 function listInfo(workshop: SampleClass): ClassListInfo {
   return { place: workshop.place, durationMinutes: workshop.durationMinutes, price: workshop.price };
 }
@@ -221,8 +227,7 @@ export function isMockDb(): boolean {
 }
 
 export function mockListPublishedClasses(now: Date): ClassSummary[] {
-  void now;
-  return CLASSES.filter((workshop) => workshop.isPublished).map((workshop) => ({
+  return CLASSES.filter((workshop) => isCustomerVisible(workshop, now)).map((workshop) => ({
     id: workshop.id,
     title: workshop.title,
     ...listInfo(workshop),
@@ -240,8 +245,8 @@ function publicSessions(id: string, now: Date): ClassDetail["sessions"] {
 }
 
 export function mockGetPublishedClass(id: string, now: Date): ClassDetail | null {
-  const workshop = CLASSES.find((workshop) => workshop.id === id && workshop.isPublished);
-  if (!workshop) return null;
+  const workshop = CLASSES.find((workshop) => workshop.id === id);
+  if (!workshop || !isCustomerVisible(workshop, now)) return null;
 
   return {
     id: workshop.id,
@@ -271,7 +276,7 @@ export function mockLookupBooking(input: unknown, now: Date): BookingLookupResul
     headcount: booking.headcount,
     customer: { name: maskName(booking.customerName), phone: maskPhone(booking.phone) },
     class: {
-      id: workshop.isPublished ? workshop.id : null,
+      id: isCustomerVisible(workshop, now) ? workshop.id : null,
       title: workshop.title,
       ...classInfo(workshop),
     },

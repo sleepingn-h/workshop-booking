@@ -146,6 +146,18 @@ describe("/api/admin/classes/[id]", () => {
     });
   });
 
+  it("R-59: 예정 회차가 없는 공개 전환의 NO_UPCOMING_SESSIONS는 409로 반환한다", async () => {
+    updateClassMock.mockRejectedValue(new AppError("NO_UPCOMING_SESSIONS"));
+
+    const response = await PATCH(authenticatedRequest("PATCH", JSON.stringify({ isPublished: true })), context());
+
+    expect(updateClassMock).toHaveBeenCalledExactlyOnceWith(id, { isPublished: true });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: { code: "NO_UPCOMING_SESSIONS", message: ERROR_MESSAGE.NO_UPCOMING_SESSIONS },
+    });
+  });
+
   it("PATCH의 잘못된 JSON은 DB 호출 없이 400으로 반환한다", async () => {
     const response = await PATCH(authenticatedRequest("PATCH", "{"), context());
 

@@ -29,24 +29,13 @@ const stepperClassName = "size-11 shrink-0 rounded-full transition-[background-c
 const seatErrorMessage = "남은 자리보다 많은 인원은 신청할 수 없습니다.";
 const fieldOrder = ["sessionId", "headcount", "customerName", "phone"] as const;
 
-function ContactLink({ contact }: { contact: string }): JSX.Element {
-  const phone = /0\d{1,2}-?\d{3,4}-?\d{4}/.exec(contact);
-  if (!phone) return <>{contact}</>;
-  return <>
-    {contact.slice(0, phone.index)}
-    <a href={`tel:${phone[0].replace(/\D/g, "")}`} className="font-medium text-[var(--color-link)] hover:text-[var(--color-link-hover)]">{phone[0]}</a>
-    {contact.slice(phone.index + phone[0].length)}
-  </>;
-}
-
+// 상세는 예정 회차가 있는 클래스만 렌더링하므로(R-59) sessions는 비어 있지 않다.
 export function BookingForm({
   classId,
   sessions,
-  contact,
 }: {
   classId: string;
   sessions: PublicSession[];
-  contact?: string;
 }): JSX.Element {
   const router = useRouter();
   const uniqueId = useId();
@@ -146,17 +135,6 @@ export function BookingForm({
 
     setFieldErrors({});
     mutation.mutate(result.value);
-  }
-
-  if (sessions.length === 0) {
-    return (
-      <section aria-label="예약 신청" className="flex min-w-0 flex-col gap-3 rounded-[var(--radius-card)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)] min-[901px]:sticky min-[901px]:top-[92px]">
-        <h2 className="font-heading text-xl font-bold">예약 신청</h2>
-        <p className="font-semibold text-[var(--text-strong)]">현재 예약 가능한 회차가 없습니다</p>
-        <p className="text-sm text-[var(--text-muted)]">새 회차가 열리면 이 화면에서 신청할 수 있습니다. 일정 문의는 공방으로 연락해 주세요.</p>
-        {contact && <p className="text-sm">문의처 <ContactLink contact={contact} /></p>}
-      </section>
-    );
   }
 
   return (

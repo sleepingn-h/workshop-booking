@@ -21,8 +21,10 @@ import {
   canChangeStartsAt,
   canDeleteClass,
   canDeleteSession,
+  canPublishClass,
   canTransition,
   customerCancelDeadline,
+  isVisibleClass,
   isVisibleSession,
   remainingSeats,
   validateBookingInput,
@@ -86,7 +88,7 @@ type BookingRow = {
 
 type SessionStatsRow = { session_id: string; occupied: number };
 type AdminSessionStatsRow = SessionStatsRow & { booking_count: number };
-type AdminClassRow = ClassRow & { sessions: Pick<SessionRow, "id" | "starts_at" | "status">[] };
+type ClassWithSessionsRow = ClassRow & { sessions: Pick<SessionRow, "id" | "starts_at" | "status">[] };
 type AdminBookingRow = BookingRow & {
   class_title: string;
   session_starts_at: string;
@@ -102,6 +104,7 @@ type CustomerBooking = {
   booking: BookingRow;
   session: SessionRow;
   workshop: ClassRow;
+  upcomingSessionCount: number;
 };
 
 const CLASS_COLUMNS = "id,title,description,place,duration_minutes,price,payment_method,materials,contact,image_url,is_published";
@@ -181,13 +184,24 @@ async function readSession(id: string): Promise<SessionRow | null> {
   return data;
 }
 
-function visibleSessions(rows: SessionRow[], now: Date): SessionRow[] {
+async function readClassSessions(classId: string): Promise<SessionRow[]> {
+  const { data, error } = await getClient()
+    .from("sessions")
+    .select(SESSION_COLUMNS)
+    .eq("class_id", classId)
+    .order("starts_at", { ascending: true })
+    .returns<SessionRow[]>();
+  if (error) throw toAppError(error);
+  return data ?? [];
+}
+
+function visibleSessions<T extends Pick<SessionRow, "starts_at" | "status">>(rows: T[], now: Date): T[] {
   return rows
     .filter((row) => isVisibleSession({ status: row.status, startsAt: new Date(row.starts_at) }, now))
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
 }
 
-async function readCustomerBooking(code: string, phoneLast4: string): Promise<CustomerBooking> {
+async function readCustomerBooking(code: string, phoneLast4: string, now: Date): Promise<CustomerBooking> {
   const { data: booking, error } = await getClient()
     .from("bookings")
     .select(BOOKING_COLUMNS)
@@ -204,11 +218,15 @@ async function readCustomerBooking(code: string, phoneLast4: string): Promise<Cu
   if (!session) throw new AppError("BOOKING_NOT_FOUND");
   const workshop = await readClass(session.class_id);
   if (!workshop) throw new AppError("BOOKING_NOT_FOUND");
-  return { booking, session, workshop };
+  // 상세 링크는 고객에게 보이는 클래스에만 주므로 공개 클래스만 예정 회차를 센다(R-59).
+  const upcomingSessionCount = workshop.is_published
+    ? visibleSessions(await readClassSessions(workshop.id), now).length
+    : 0;
+  return { booking, session, workshop, upcomingSessionCount };
 }
 
 function toBookingLookupResult(
-  { booking, session, workshop }: CustomerBooking,
+  { booking, session, workshop, upcomingSessionCount }: CustomerBooking,
   now: Date,
 ): BookingLookupResult {
   const startsAt = new Date(session.starts_at);
@@ -218,7 +236,7 @@ function toBookingLookupResult(
     headcount: booking.headcount,
     customer: { name: maskName(booking.customer_name), phone: maskPhone(booking.phone) },
     class: {
-      id: workshop.is_published ? workshop.id : null,
+      id: isVisibleClass(workshop.is_published, upcomingSessionCount) ? workshop.id : null,
       title: workshop.title,
       ...toClassInfo(workshop),
     },
@@ -228,22 +246,25 @@ function toBookingLookupResult(
   };
 }
 
+// 예정 회차가 없는 공개 클래스는 숨긴다(R-59). 회차·남은 자리는 상세에서 조회한다.
 export async function listPublishedClasses(): Promise<ClassSummary[]> {
   const now = new Date();
   if (isMockDb()) return mockListPublishedClasses(now);
   const { data: classes, error } = await getClient()
     .from("classes")
-    .select(CLASS_COLUMNS)
+    .select(`${CLASS_COLUMNS},sessions(id,starts_at,status)`)
     .eq("is_published", true)
     .order("created_at", { ascending: true })
-    .returns<ClassRow[]>();
+    .returns<ClassWithSessionsRow[]>();
   if (error) throw toAppError(error);
-  return (classes ?? []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    ...toClassListInfo(row),
-    imageUrl: row.image_url,
-  }));
+  return (classes ?? [])
+    .filter((row) => isVisibleClass(row.is_published, visibleSessions(row.sessions, now).length))
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      ...toClassListInfo(row),
+      imageUrl: row.image_url,
+    }));
 }
 
 async function readOccupied(sessionIds: string[]): Promise<Map<string, number>> {
@@ -267,15 +288,8 @@ export async function getPublishedClass(id: string): Promise<ClassDetail | null>
   const workshop = await readClass(id);
   if (!workshop?.is_published) return null;
 
-  const { data: sessions, error } = await getClient()
-    .from("sessions")
-    .select(SESSION_COLUMNS)
-    .eq("class_id", id)
-    .order("starts_at", { ascending: true })
-    .returns<SessionRow[]>();
-  if (error) throw toAppError(error);
-
-  const visible = visibleSessions(sessions ?? [], now);
+  const visible = visibleSessions(await readClassSessions(id), now);
+  if (!isVisibleClass(workshop.is_published, visible.length)) return null;
   const occupied = await readOccupied(visible.map((row) => row.id));
 
   return {
@@ -342,7 +356,7 @@ export async function lookupBooking(input: unknown): Promise<BookingLookupResult
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
 
   const { code, phoneLast4 } = validated.value;
-  return toBookingLookupResult(await readCustomerBooking(code, phoneLast4), now);
+  return toBookingLookupResult(await readCustomerBooking(code, phoneLast4, now), now);
 }
 
 export async function cancelBookingByCustomer(code: string, input: unknown): Promise<BookingLookupResult> {
@@ -355,7 +369,7 @@ export async function cancelBookingByCustomer(code: string, input: unknown): Pro
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
 
   const credentials = validated.value;
-  const current = await readCustomerBooking(credentials.code, credentials.phoneLast4);
+  const current = await readCustomerBooking(credentials.code, credentials.phoneLast4, now);
   const result = canTransition(current.booking.status, "cancel", "customer", {
     startsAt: new Date(current.session.starts_at), now,
   });
@@ -368,7 +382,7 @@ export async function cancelBookingByCustomer(code: string, input: unknown): Pro
   });
   if (error) throw toAppError(error);
 
-  const updated = await readCustomerBooking(credentials.code, credentials.phoneLast4);
+  const updated = await readCustomerBooking(credentials.code, credentials.phoneLast4, now);
   return toBookingLookupResult(updated, now);
 }
 
@@ -496,7 +510,7 @@ export async function listAdminClasses(): Promise<AdminClassSummary[]> {
     .from("classes")
     .select(`${CLASS_COLUMNS},sessions(id,starts_at,status)`)
     .order("created_at", { ascending: false })
-    .returns<AdminClassRow[]>();
+    .returns<ClassWithSessionsRow[]>();
   if (error) throw toAppError(error);
   const rows = data ?? [];
   const pendingBySession = await countPendingBySession(rows.flatMap((row) => row.sessions.map(({ id }) => id)));
@@ -521,16 +535,9 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
   const workshop = await readClass(id);
   if (!workshop) throw new AppError("NOT_FOUND");
 
-  const { data: sessions, error } = await getClient()
-    .from("sessions")
-    .select(SESSION_COLUMNS)
-    .eq("class_id", id)
-    .order("starts_at", { ascending: true })
-    .returns<SessionRow[]>();
-  if (error) throw toAppError(error);
-
+  const sessions = await readClassSessions(id);
   const statsBySession = new Map<string, AdminSessionStatsRow>();
-  if (sessions?.length) {
+  if (sessions.length) {
     const { data: stats, error: statsError } = await getClient()
       .from("session_stats")
       .select("session_id,occupied,booking_count")
@@ -539,7 +546,7 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
     if (statsError) throw toAppError(statsError);
     for (const row of stats ?? []) statsBySession.set(row.session_id, row);
   }
-  const pendingBySession = await countPendingBySession((sessions ?? []).map((row) => row.id));
+  const pendingBySession = await countPendingBySession(sessions.map((row) => row.id));
 
   return {
     id: workshop.id,
@@ -548,7 +555,7 @@ export async function getAdminClass(id: string): Promise<AdminClassDetail> {
     ...toClassInfo(workshop),
     imageUrl: workshop.image_url,
     isPublished: workshop.is_published,
-    sessions: (sessions ?? [])
+    sessions: sessions
       .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
       .map((row) => ({
         id: row.id,
@@ -583,11 +590,17 @@ export async function createClass(input: unknown): Promise<{ id: string }> {
 export async function updateClass(id: string, input: unknown): Promise<void> {
   const now = new Date();
   if (isMockDb()) throw new AppError("MOCK_READ_ONLY");
-  void now;
   if (!UUID_PATTERN.test(id)) throw new AppError("NOT_FOUND");
   const validated = validateClassPatch(input);
   if (!validated.ok) throw new AppError(validated.code, undefined, validated.fieldErrors);
   const { isPublished, ...fields } = validated.value;
+
+  // 공개할 수 없으면 함께 보낸 필드도 저장하지 않는다. 잠금 후 RPC가 같은 시각으로 다시 확인한다(R-59).
+  if (isPublished === true) {
+    if (!await readClass(id)) throw new AppError("NOT_FOUND");
+    const result = canPublishClass(visibleSessions(await readClassSessions(id), now).length);
+    if (!result.ok) throw new AppError(result.code);
+  }
 
   if (Object.keys(fields).length > 0) {
     const { data, error } = await getClient()
@@ -605,6 +618,7 @@ export async function updateClass(id: string, input: unknown): Promise<void> {
     const { error } = await getClient().rpc("set_class_published", {
       p_class_id: id,
       p_is_published: isPublished,
+      p_now: now.toISOString(),
     });
     if (error) throw toAppError(error);
   }

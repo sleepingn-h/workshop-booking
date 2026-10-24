@@ -25,6 +25,17 @@ const requiredLabels = ["클래스명", "장소", "소요 시간", "비용 (1인
 const withSession: AdminClassDetail = {
   ...detail, sessions: [{ id: "session-1", startsAt: "2026-10-25T05:00:00Z", capacity: 4, status: "scheduled", occupied: 0, bookingCount: 0, pendingCount: 0 }],
 };
+// 공개할 수 있는 클래스(R-59)다. 이 파일은 시각을 고정하지 않아 실제 시각 기준 일주일 뒤로 둔다.
+const withUpcoming: AdminClassDetail = {
+  ...detail, sessions: [{ ...withSession.sessions[0], startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }],
+};
+const endedOnly: AdminClassDetail = {
+  ...detail, sessions: [
+    { ...withSession.sessions[0], id: "past", startsAt: "2026-01-01T05:00:00Z" },
+    { ...withSession.sessions[0], id: "cancelled", status: "cancelled", startsAt: "2099-01-01T05:00:00Z" },
+  ],
+};
+const blockedMessage = "예정 회차가 없어 공개할 수 없어요. 회차를 먼저 추가해 주세요.";
 const path = `/api/admin/classes/${detail.id}`;
 const clients: QueryClient[] = [];
 function renderForm(classId?: string, sessions?: ReactNode) {
@@ -275,8 +286,8 @@ describe("AdminClassForm 수정", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("R-52, R-57: 공개 %s 상태의 스위치는 확인 없이 반대 값만 PATCH하고 처리 중에는 비활성이다", async (isPublished) => {
-    const user = userEvent.setup(); apiMock.mockResolvedValueOnce({ ...detail, isPublished });
+  it.each([false, true])("R-52, R-57, R-59: 예정 회차가 있으면 공개 %s 상태의 스위치는 확인 없이 반대 값만 PATCH하고 처리 중에는 비활성이다", async (isPublished) => {
+    const user = userEvent.setup(); apiMock.mockResolvedValueOnce({ ...withUpcoming, isPublished });
     const client = renderForm(detail.id); await screen.findByDisplayValue(detail.title);
     const invalidate = vi.spyOn(client, "invalidateQueries");
     const control = screen.getByRole("switch", { name: "고객에게 공개" });
@@ -288,7 +299,7 @@ describe("AdminClassForm 수정", () => {
     expect(apiMock).toHaveBeenCalledWith(path, { method: "PATCH", json: { isPublished: !isPublished } });
     expect(control).toHaveProperty("checked", !isPublished);
     expect(control).toBeDisabled();
-    apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : { ...detail, isPublished: !isPublished });
+    apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : { ...withUpcoming, isPublished: !isPublished });
     await act(async () => { finish({ ok: true }); });
     await waitFor(() => expect(control).toBeEnabled());
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] });
@@ -296,8 +307,66 @@ describe("AdminClassForm 수정", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { name: "회차가 없으면", workshop: detail },
+    { name: "지난·취소된 회차만 있으면", workshop: endedOnly },
+  ])("R-59: $name 공개 스위치는 API를 호출하지 않고 공개 설정에 회차 추가 안내를 보여준다", async ({ workshop }) => {
+    const user = userEvent.setup(); apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : workshop);
+    renderForm(detail.id, <form id="add-session" aria-label="회차 추가"><input aria-label="시작 일시" /></form>);
+    await screen.findByDisplayValue(detail.title);
+    const control = screen.getByRole("switch", { name: "고객에게 공개" });
+    await user.click(control);
+    expect(changes()).toEqual([]);
+    expect(control).not.toBeChecked();
+    expect(control).toBeEnabled();
+    const card = screen.getByRole("region", { name: "공개 설정" });
+    expect(within(card).getByRole("alert")).toHaveTextContent(blockedMessage);
+    expect(toast.error).not.toHaveBeenCalled();
+    await user.click(within(card).getByRole("button", { name: "회차 추가하기" }));
+    expect(screen.getByLabelText("시작 일시")).toHaveFocus();
+  });
+
+  it("R-59: 회차가 추가되면 안내를 지우고 공개할 수 있다", async () => {
+    const user = userEvent.setup(); const client = await renderEdit();
+    await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
+    expect(screen.getByText(blockedMessage)).toBeVisible();
+    act(() => { client.setQueryData(["admin", "class", detail.id], withUpcoming); });
+    await waitFor(() => expect(screen.queryByText(blockedMessage)).not.toBeInTheDocument());
+    await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
+    expect(apiMock).toHaveBeenCalledWith(path, { method: "PATCH", json: { isPublished: true } });
+  });
+
+  it("R-59: 저장 시점에 예정 회차가 없다는 응답을 받으면 토스트 없이 같은 안내를 보여주고 상세를 다시 조회한다", async () => {
+    const user = userEvent.setup(); apiMock.mockResolvedValueOnce(withUpcoming);
+    const client = renderForm(detail.id); await screen.findByDisplayValue(detail.title);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    apiMock.mockRejectedValueOnce(new ApiError("NO_UPCOMING_SESSIONS", "예정 회차가 없는 클래스는 공개할 수 없습니다. 회차를 먼저 추가해 주세요.", 409));
+    await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
+    expect(await screen.findByText(blockedMessage)).toBeVisible();
+    expect(screen.getByRole("button", { name: "회차 추가하기" })).toBeVisible();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin"] });
+    expect(screen.getByRole("switch", { name: "고객에게 공개" })).not.toBeChecked();
+  });
+
+  it("R-59: 공개 중이지만 예정 회차가 없으면 고객에게 보이지 않는다고 안내하고 비공개 전환은 그대로 PATCH한다", async () => {
+    const user = userEvent.setup(); apiMock.mockResolvedValueOnce({ ...endedOnly, isPublished: true });
+    renderForm(detail.id); await screen.findByDisplayValue(detail.title);
+    const card = screen.getByRole("region", { name: "공개 설정" });
+    expect(within(card).getByText("예정 회차가 없어 지금은 고객에게 보이지 않아요. 회차를 추가하면 다시 보여요.")).toBeVisible();
+    await user.click(within(card).getByRole("switch", { name: "고객에게 공개" }));
+    expect(apiMock).toHaveBeenCalledWith(path, { method: "PATCH", json: { isPublished: false } });
+  });
+
+  it("R-59: 공개할 수 있으면 공개 설정에 고객 미노출 안내를 두지 않는다", async () => {
+    apiMock.mockResolvedValueOnce({ ...withUpcoming, isPublished: true });
+    renderForm(detail.id); await screen.findByDisplayValue(detail.title);
+    expect(screen.queryByText(/고객에게 보이지 않아요/)).not.toBeInTheDocument();
+    expect(screen.queryByText(blockedMessage)).not.toBeInTheDocument();
+  });
+
   it("공개 전환 실패 시 서버 사유를 표시하고 저장된 상태로 되돌린다", async () => {
-    const user = userEvent.setup(); await renderEdit();
+    const user = userEvent.setup(); apiMock.mockResolvedValueOnce(withUpcoming); await renderEdit();
     apiMock.mockRejectedValueOnce(new ApiError("MOCK_READ_ONLY", "목 데이터 모드에서는 변경할 수 없습니다.", 503));
     await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("목 데이터 모드에서는 변경할 수 없습니다.");
@@ -305,7 +374,7 @@ describe("AdminClassForm 수정", () => {
   });
 
   it("공개 전환 후 재조회해도 저장하지 않은 이름·소개를 유지한다", async () => {
-    const user = userEvent.setup(); await renderEdit();
+    const user = userEvent.setup(); apiMock.mockImplementation(async (_path, init) => init?.method ? { ok: true } : withUpcoming); await renderEdit();
     await user.type(screen.getByLabelText("클래스명"), " 미저장");
     await user.type(screen.getByLabelText("소개"), " 미저장 소개");
     await user.click(screen.getByRole("switch", { name: "고객에게 공개" }));

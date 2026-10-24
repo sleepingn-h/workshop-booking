@@ -308,6 +308,16 @@ export function canDeleteClass(sessionCount: number): RuleResult {
   return sessionCount > 0 ? { ok: false, code: "CLASS_HAS_SESSIONS" } : { ok: true };
 }
 
+// 예정 회차는 시작 전이며 취소되지 않은 회차(isVisibleSession)이고 만석 회차도 포함한다.
+export function canPublishClass(upcomingSessionCount: number): RuleResult {
+  return upcomingSessionCount > 0 ? { ok: true } : { ok: false, code: "NO_UPCOMING_SESSIONS" };
+}
+
+// 공개 후 예정 회차가 모두 시작·취소·삭제되면 공개 설정은 유지한 채 고객 화면에서만 숨긴다.
+export function isVisibleClass(isPublished: boolean, upcomingSessionCount: number): boolean {
+  return isPublished && upcomingSessionCount > 0;
+}
+
 export function validateImage(file: { type: string; size: number }): RuleResult {
   return ALLOWED_IMAGE_TYPES.includes(file.type) && file.size <= IMAGE_MAX_BYTES
     ? { ok: true }

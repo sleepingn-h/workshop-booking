@@ -2,13 +2,14 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CircleAlert, Info, MapPin, Paintbrush, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, CircleAlert, Info, MapPin, Paintbrush, Plus, Trash2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { focusAddSession } from "@/components/admin-session-list";
 import { LoadingPlaceholder } from "@/components/loading-placeholder";
 import { Tag } from "@/components/status-badge";
 import { ToggleSwitch } from "@/components/toggle-switch";
@@ -19,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
-import { ALLOWED_IMAGE_TYPES, IMAGE_MAX_BYTES, validateClassInput, validateImage } from "@/lib/rules";
+import { ALLOWED_IMAGE_TYPES, IMAGE_MAX_BYTES, isVisibleSession, validateClassInput, validateImage } from "@/lib/rules";
 import { ERROR_MESSAGE, type AdminClassDetail, type ClassInput, type FieldErrors } from "@/lib/types";
 
 const inputClassName = "min-h-[52px] w-full min-w-0 rounded-[var(--radius-card)] border-2 border-[var(--border-input)] bg-[var(--surface-card)] px-4 text-base text-[var(--text-strong)] outline-none focus-visible:border-[var(--color-primary)] focus-visible:shadow-[var(--shadow-input-focus)] focus-visible:ring-0 md:text-base";
@@ -32,6 +33,7 @@ const requiredMarkClassName = "text-sm font-semibold text-[var(--color-magenta)]
 const imageErrorMessage = `JPEG·PNG·WebP, ${IMAGE_MAX_BYTES / (1024 * 1024)}MB 이하 이미지를 선택해 주세요.`;
 const imageRetryMessage = "대표 이미지는 올리지 못했어요. 편집 화면에서 다시 올려 주세요.";
 const deleteBlockedMessage = "회차가 있어 삭제할 수 없어요. 대신 비공개로 전환하세요.";
+const publishBlockedMessage = "예정 회차가 없어 공개할 수 없어요. 회차를 먼저 추가해 주세요.";
 type ClassFields = Record<keyof ClassInput, string>;
 type FieldSpec = { field: keyof ClassInput; label: string; required: boolean; unit?: string; wide?: boolean; multiline?: boolean; placeholder?: string };
 // 화면 순서이자 첫 오류 칸을 고르는 순서다. 소개 외의 항목은 모두 필수다(R-53).
@@ -101,6 +103,11 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
   const [dialogOpen, setDialogOpen] = useState(false);
   const path = `/api/admin/classes/${encodeURIComponent(classId ?? "")}`;
   const hasSessions = Boolean(workshop?.sessions.length);
+  const now = new Date();
+  const hasUpcomingSession = Boolean(workshop?.sessions.some((session) => isVisibleSession({ status: session.status, startsAt: new Date(session.startsAt) }, now)));
+  // 공개가 막히면 회차 추가를 안내하고, 예정 회차가 생기면 안내를 거둔다(R-59).
+  // 저장 시점에 막힌 경우는 재조회가 끝나 예정 회차가 없다고 확인될 때 안내가 보인다.
+  const [publishBlocked, setPublishBlocked] = useState(false);
   useEffect(() => {
     if (!pendingImage) return;
     return () => URL.revokeObjectURL(pendingImage.url);
@@ -146,6 +153,12 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
       if (change.type === "save") setDraft(null);
     },
     onError: (error, change) => {
+      if (change.type === "visibility" && error instanceof ApiError && error.code === "NO_UPCOMING_SESSIONS") {
+        // 화면을 불러온 뒤 회차가 시작·취소된 경우라 회차 목록을 다시 조회한다.
+        setPublishBlocked(true);
+        void queryClient.invalidateQueries({ queryKey: ["admin"] });
+        return;
+      }
       const message = error instanceof ApiError
         ? error.code === "CLASS_HAS_SESSIONS" ? deleteBlockedMessage : error.message
         : ERROR_MESSAGE.INTERNAL_ERROR;
@@ -280,9 +293,16 @@ function ClassEditor({ classId, workshop, children }: { classId?: string; worksh
           <ToggleSwitch label="고객에게 공개" checked={isPublished} disabled={mutation.isPending} describedBy={`${prefix}-visibility-hint`} onCheckedChange={(checked) => {
             if (mutation.isPending) return;
             setFailure(null);
+            setPublishBlocked(false);
+            if (checked && !hasUpcomingSession) { setPublishBlocked(true); return; }
             mutation.mutate({ type: "visibility", isPublished: checked });
           }} />
           <p id={`${prefix}-visibility-hint`} className="text-sm text-[var(--text-muted)]">비공개 클래스는 목록에 나오지 않고 링크로도 신청할 수 없어요.</p>
+          {workshop?.isPublished && !hasUpcomingSession && <p className="text-sm font-medium text-[var(--status-danger)]">예정 회차가 없어 지금은 고객에게 보이지 않아요. 회차를 추가하면 다시 보여요.</p>}
+          {publishBlocked && !hasUpcomingSession && <>
+            <ErrorNotice message={publishBlockedMessage} />
+            <Button type="button" variant="ghost" onClick={() => focusAddSession()} className={`${smallClassName} bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)]`}><Plus aria-hidden="true" />회차 추가하기</Button>
+          </>}
           {failure?.type === "visibility" && <ErrorNotice message={failure.message} />}
         </section>
 

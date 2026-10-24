@@ -161,6 +161,8 @@ function queueLookup(
   client.queue("bookings", { ...booking, ...bookingPatch });
   client.queue("sessions", { ...session, ...sessionPatch });
   client.queue("classes", { ...workshop, ...classPatch });
+  // 공개 클래스는 상세 링크를 줄지 정하려고 클래스의 회차를 한 번 더 조회한다(R-59).
+  if (classPatch.is_published !== false) client.queue("sessions", [{ ...session, ...sessionPatch }]);
 }
 
 describe("개발용 읽기 전용 목 모드 분기", () => {
@@ -303,16 +305,31 @@ describe("Supabase 클라이언트와 에러 처리", () => {
 });
 
 describe("공개 클래스 조회", () => {
-  it("R-52 R-53 공개 클래스마다 이름·장소·소요 시간·비용·이미지만 주고 회차·남은 자리는 조회하지 않는다", async () => {
+  it("R-52 R-53 R-59 예정 회차가 있는 공개 클래스마다 이름·장소·소요 시간·비용·이미지만 주고 남은 자리는 조회하지 않는다", async () => {
+    const at = (id: string, starts_at: string, status = "scheduled") => ({ id, starts_at, status });
     const noImageClass = { ...workshop, id: "10000000-0000-4000-8000-000000000002", image_url: null };
-    client.queue("classes", [workshop, noImageClass]);
+    const startedClass = { ...workshop, id: "10000000-0000-4000-8000-000000000003" };
+    const emptyClass = { ...workshop, id: "10000000-0000-4000-8000-000000000004" };
+    client.queue("classes", [
+      { ...workshop, sessions: [at(sessionId, session.starts_at)] },
+      { ...noImageClass, sessions: [at("20000000-0000-4000-8000-000000000002", now.toISOString()), at("20000000-0000-4000-8000-000000000003", "2026-10-18T03:00:00Z")] },
+      { ...startedClass, sessions: [at("20000000-0000-4000-8000-000000000004", now.toISOString()), at("20000000-0000-4000-8000-000000000005", "2026-10-25T03:00:00Z", "cancelled")] },
+      { ...emptyClass, sessions: [] },
+    ]);
 
     await expect(db.listPublishedClasses()).resolves.toEqual([
       { id: classId, title: workshop.title, ...listInfo, imageUrl: workshop.image_url },
       { id: noImageClass.id, title: workshop.title, ...listInfo, imageUrl: null },
     ]);
     expect(client.queries[0].chain.eq).toHaveBeenCalledWith("is_published", true);
+    expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("sessions(id,starts_at,status)"));
     expect(client.queries.map(({ table }) => table)).toEqual(["classes"]);
+  });
+
+  it("R-59 목록 조회 중 시각이 바뀌어도 진입 시각으로 예정 회차를 판정한다", async () => {
+    const startsAt = new Date(now.getTime() + 1).toISOString();
+    client.queue("classes", [{ ...workshop, sessions: [{ id: sessionId, starts_at: startsAt, status: "scheduled" }] }], null, () => vi.setSystemTime("2026-10-25T00:00:00Z"));
+    await expect(db.listPublishedClasses()).resolves.toEqual([expect.objectContaining({ id: classId })]);
   });
 
   it("R-52 공개 클래스가 없으면 빈 목록을 반환한다", async () => {
@@ -354,10 +371,17 @@ describe("공개 클래스 조회", () => {
     expect(client.queries.find(({ table }) => table === "sessions")?.chain.eq).toHaveBeenCalledWith("class_id", classId);
   });
 
-  it("R-54 표시할 회차가 없으면 클래스 안내와 빈 회차를 반환한다", async () => {
+  it("R-54 R-59 예정 회차가 없는 공개 클래스 상세는 남은 자리를 조회하지 않고 null이다", async () => {
+    client.queue("classes", workshop);
+    client.queue("sessions", [
+      { ...session, starts_at: now.toISOString() },
+      { ...session, starts_at: "2026-10-25T03:00:00Z", status: "cancelled" },
+    ]);
+    await expect(db.getPublishedClass(classId)).resolves.toBeNull();
     client.queue("classes", workshop);
     client.queue("sessions", []);
-    await expect(db.getPublishedClass(classId)).resolves.toMatchObject({ title: workshop.title, sessions: [] });
+    await expect(db.getPublishedClass(classId)).resolves.toBeNull();
+    expect(client.from.mock.calls).toEqual([["classes"], ["sessions"], ["classes"], ["sessions"]]);
   });
 });
 
@@ -472,11 +496,22 @@ describe("고객 예약 조회와 취소", () => {
     });
     expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("customer_name"));
     expect(client.queries[0].chain.eq).toHaveBeenCalledWith("code", "BK-DEMO01");
+    expect(client.from.mock.calls).toEqual([["bookings"], ["sessions"], ["classes"]]);
   });
 
-  it("R-30 R-52 공개 클래스의 예약 조회는 상세 링크용 클래스 id를 포함한다", async () => {
+  it("R-30 R-52 R-59 예정 회차가 있는 공개 클래스의 예약 조회는 상세 링크용 클래스 id를 포함한다", async () => {
     queueLookup();
     await expect(db.lookupBooking(credentials)).resolves.toMatchObject({ class: { id: classId, title: workshop.title } });
+    expect(client.queries[3].table).toBe("sessions");
+    expect(client.queries[3].chain.eq).toHaveBeenCalledWith("class_id", classId);
+  });
+
+  it("R-30 R-59 공개 클래스라도 예정 회차가 없으면 상세 링크용 id를 주지 않고 예약은 조회한다", async () => {
+    client.queue("bookings", booking);
+    client.queue("sessions", session);
+    client.queue("classes", workshop);
+    client.queue("sessions", [{ ...session, status: "cancelled" }, { ...session, starts_at: now.toISOString() }]);
+    await expect(db.lookupBooking(credentials)).resolves.toMatchObject({ code: booking.code, class: { id: null, title: workshop.title } });
   });
 
   it("R-30 R-42 R-54 취소된 숨김 회차의 최종 예약도 조회할 수 있다", async () => {
@@ -519,6 +554,7 @@ describe("고객 예약 조회와 취소", () => {
     client.queue("bookings", booking, null, () => vi.setSystemTime("2026-10-22T00:00:00Z"));
     client.queue("sessions", { ...session, starts_at });
     client.queue("classes", workshop);
+    client.queue("sessions", [{ ...session, starts_at }]);
     queueLookup({ status: "cancelled" }, { starts_at });
 
     await expect(db.cancelBookingByCustomer(credentials.code, { phoneLast4: "0001" })).resolves.toMatchObject({ status: "cancelled" });
@@ -639,6 +675,7 @@ describe("운영자 카탈로그 입력과 대상 확인", () => {
   const idActions = [
     { name: "getAdminClass", table: "classes", call: (id: string) => db.getAdminClass(id) },
     { name: "updateClass", table: "classes", call: (id: string) => db.updateClass(id, { title: "수정" }) },
+    { name: "updateClass publish", table: "classes", call: (id: string) => db.updateClass(id, { isPublished: true }) },
     { name: "deleteClass", table: "classes", call: (id: string) => db.deleteClass(id) },
     { name: "uploadClassImage", table: "classes", call: (id: string) => db.uploadClassImage(id, new File(["image"], "test.jpg", { type: "image/jpeg" })) },
     { name: "updateSession", table: "sessions", call: (id: string) => db.updateSession(id, { capacity: 4 }) },
@@ -766,17 +803,50 @@ describe("운영자 클래스 조회와 저장", () => {
     expect(client.rpc).not.toHaveBeenCalled();
   });
 
-  it.each([true, false])("R-52 공개 여부 %s는 일반 update 없이 set_class_published RPC로 저장한다", async (isPublished) => {
-    await expect(db.updateClass(classId, { isPublished })).resolves.toBeUndefined();
-    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: isPublished });
+  it("R-52 비공개 전환은 회차를 조회하지 않고 요청 시각과 함께 set_class_published RPC로 저장한다", async () => {
+    await expect(db.updateClass(classId, { isPublished: false })).resolves.toBeUndefined();
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: false, p_now: now.toISOString() });
     expect(client.from).not.toHaveBeenCalled();
   });
 
+  it("R-52 R-59 예정 회차가 있으면 일반 update 없이 진입 시각을 규칙과 RPC에 같이 넘겨 공개한다", async () => {
+    const publish = vi.spyOn(rules, "canPublishClass");
+    const startsAt = new Date(now.getTime() + 1).toISOString();
+    client.queue("classes", { ...workshop, is_published: false });
+    client.queue("sessions", [{ ...session, starts_at: startsAt }], null, () => vi.setSystemTime("2026-10-25T00:00:00Z"));
+
+    await expect(db.updateClass(classId, { isPublished: true })).resolves.toBeUndefined();
+    expect(publish).toHaveBeenCalledExactlyOnceWith(1);
+    expect(client.queries[1].chain.eq).toHaveBeenCalledWith("class_id", classId);
+    expect(client.queries.some(({ chain }) => chain.update.mock.calls.length > 0)).toBe(false);
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: true, p_now: now.toISOString() });
+  });
+
+  it("R-59 예정 회차가 없으면 함께 보낸 필드도 저장하지 않고 공개 RPC를 호출하지 않는다", async () => {
+    client.queue("classes", { ...workshop, is_published: false });
+    client.queue("sessions", [
+      { ...session, starts_at: now.toISOString() },
+      { ...session, starts_at: "2026-10-25T03:00:00Z", status: "cancelled" },
+    ]);
+    await expect(db.updateClass(classId, { title: "새 이름", isPublished: true })).rejects.toMatchObject({ code: "NO_UPCOMING_SESSIONS" });
+    expect(client.queries.some(({ chain }) => chain.update.mock.calls.length > 0)).toBe(false);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("R-59 잠금 후 예정 회차가 없으면 RPC 오류를 반환한다", async () => {
+    client.queue("classes", { ...workshop, is_published: false });
+    client.queue("sessions", [session]);
+    client.rpc.mockResolvedValue({ data: null, error: { message: "NO_UPCOMING_SESSIONS" } });
+    await expect(db.updateClass(classId, { isPublished: true })).rejects.toMatchObject({ code: "NO_UPCOMING_SESSIONS" });
+  });
+
   it("R-52 R-58 함께 수정할 때 일반 update에서 공개 여부를 제외하고 RPC로 보낸다", async () => {
+    client.queue("classes", { ...workshop, is_published: false });
+    client.queue("sessions", [session]);
     client.queue("classes", { id: classId });
     await db.updateClass(classId, { title: "새 이름", isPublished: true });
-    expect(client.queries[0].chain.update).toHaveBeenCalledExactlyOnceWith({ title: "새 이름" });
-    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: true });
+    expect(client.queries[2].chain.update).toHaveBeenCalledExactlyOnceWith({ title: "새 이름" });
+    expect(client.rpc).toHaveBeenCalledExactlyOnceWith("set_class_published", { p_class_id: classId, p_is_published: true, p_now: now.toISOString() });
   });
 
   it("R-51 회차가 있으면 삭제·비공개 RPC를 호출하지 않는다", async () => {
@@ -1012,7 +1082,7 @@ describe("운영자 회차 관리", () => {
     } else if (action === "createSession") {
       result = db.createSession(classId, sessionInput);
     } else {
-      result = db.updateClass(classId, { isPublished: true });
+      result = db.updateClass(classId, { isPublished: false });
     }
     await expect(result).rejects.toMatchObject({ code });
   });

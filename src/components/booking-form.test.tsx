@@ -25,13 +25,13 @@ const sessions: PublicSession[] = [
 const clients: QueryClient[] = [];
 const apiMock = vi.mocked(apiFetch);
 
-function renderForm(initialSessions = sessions, contact?: string) {
+function renderForm(initialSessions = sessions) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   clients.push(client);
   function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
-  return render(<BookingForm classId="class-1" sessions={initialSessions} contact={contact} />, { wrapper: Wrapper });
+  return render(<BookingForm classId="class-1" sessions={initialSessions} />, { wrapper: Wrapper });
 }
 
 function headcountGroup() {
@@ -86,16 +86,6 @@ describe("BookingForm", () => {
     expect(full).toBeDisabled();
     await user.click(full);
     expect(full).not.toBeChecked();
-  });
-
-  it("R-54: 회차가 없으면 안내와 문의처만 표시하고 폼 입력을 숨긴다", () => {
-    renderForm([], "010-0000-9001");
-
-    expect(screen.getByText("현재 예약 가능한 회차가 없습니다")).toBeVisible();
-    expect(screen.getByRole("link", { name: "010-0000-9001" })).toHaveAttribute("href", "tel:01000009001");
-    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "예약 신청하기" })).not.toBeInTheDocument();
   });
 
   it("R-12: 인원은 1~4명만 고르고 이름·전화번호에 라벨과 자동완성을 제공한다", async () => {
