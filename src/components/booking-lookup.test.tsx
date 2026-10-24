@@ -130,13 +130,25 @@ describe("BookingLookup", () => {
     expect(steps).toBeVisible();
     expect(title.compareDocumentPosition(steps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(steps.compareDocumentPosition(screen.getByText("신청자")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const currentStep = within(steps).getAllByRole("listitem").find((step) => step.getAttribute("aria-current") === "step");
-    expect(currentStep).toHaveTextContent(status === "confirmed" ? "참여 확정" : "운영자 확인");
+    expect(within(steps).getAllByRole("listitem").map((step) => step.textContent)).toEqual(status === "confirmed"
+      ? ["신청 (완료)", "운영자 확인 (완료)", "참여 확정 (완료)"]
+      : ["신청 (완료)", "운영자 확인", "참여 확정"]);
   });
 
-  it.each(["rejected", "cancelled"] as const)("R-33: %s 조회 결과에는 운영자 확인 중인 신청 처리 단계를 표시하지 않는다", async (status) => {
+  it("R-21, R-33: 거절됨 조회 결과는 마지막 신청 처리 단계를 거절됨으로 표시한다", async () => {
     const user = userEvent.setup();
-    apiMock.mockResolvedValue({ ...booking, status });
+    apiMock.mockResolvedValue({ ...booking, status: "rejected" });
+    renderLookup();
+    await submitLookup(user);
+
+    await findResultTitle();
+    const steps = screen.getByRole("list", { name: "신청 처리 단계" });
+    expect(within(steps).getAllByRole("listitem").map((step) => step.textContent)).toEqual(["신청 (완료)", "운영자 확인 (완료)", "거절됨"]);
+  });
+
+  it("R-21, R-33: 취소됨 조회 결과에는 신청 처리 단계를 표시하지 않는다", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue({ ...booking, status: "cancelled" });
     renderLookup();
     await submitLookup(user);
 
@@ -288,6 +300,23 @@ describe("BookingLookup", () => {
     await act(async () => { finish(booking); });
   });
 
+  it("R-30: 조회 중에는 폼 아래 자리 표시 없이 버튼 문구로만 알리고, 응답이 오면 결과 화면으로 넘어간다", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: BookingLookupResult) => void;
+    apiMock.mockReturnValue(new Promise<BookingLookupResult>((resolve) => { finish = resolve; }));
+    renderLookup();
+    await submitLookup(user);
+
+    expect(screen.getByRole("form", { name: "예약 조회" })).toBeVisible();
+    expect(screen.getByRole("status")).toHaveClass("sr-only");
+    expect(window.location.search).toBe("");
+
+    await act(async () => { finish(booking); });
+    expect(await findResultTitle()).toBeVisible();
+    expect(screen.queryByRole("form", { name: "예약 조회" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("R-30: BOOKING_NOT_FOUND는 잘못된 인증값을 구분하지 않고 입력을 유지한다", async () => {
     const user = userEvent.setup();
     apiMock.mockRejectedValue(new ApiError("BOOKING_NOT_FOUND", "전화번호가 틀렸습니다", 404));
@@ -335,6 +364,25 @@ describe("BookingLookup", () => {
     expect(apiMock).toHaveBeenCalledTimes(3);
   });
 
+  it("결과 화면의 재시도 중에는 오류 안내를 유지하고 재시도 버튼만 조회 중으로 바꾼다", async () => {
+    const user = userEvent.setup();
+    renderLookup();
+    await submitLookup(user);
+    await findResultTitle();
+    apiMock.mockRejectedValueOnce(new ApiError("NETWORK_ERROR", "네트워크 연결을 확인해 주세요.", 0));
+    await user.click(screen.getByRole("button", { name: "다시 조회" }));
+    await screen.findByRole("alert");
+
+    let finish!: (value: BookingLookupResult) => void;
+    apiMock.mockReturnValueOnce(new Promise<BookingLookupResult>((resolve) => { finish = resolve; }));
+    await user.click(screen.getByRole("button", { name: "재시도" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("예약을 불러오지 못했습니다.");
+    expect(screen.getByRole("button", { name: "조회 중…" })).toBeDisabled();
+    await act(async () => { finish(booking); });
+    expect(await findResultTitle()).toBeVisible();
+  });
+
   it.each<BookingStatus>(["pending", "confirmed", "rejected", "cancelled"])("R-33: %s 상태를 고객용 텍스트 배지로 표시한다", async (status) => {
     const user = userEvent.setup();
     apiMock.mockResolvedValue({ ...booking, status, canCancel: false, cancelDeadline: null });
@@ -365,8 +413,8 @@ describe("BookingLookup", () => {
     expect(screen.queryByText("없음")).not.toBeInTheDocument();
     expect(screen.queryByText(booking.code)).not.toBeInTheDocument();
     expect(screen.queryByText(/한국 시각 기준/)).not.toBeInTheDocument();
-    expect(screen.getByText(/직접 취소 기한/)).toBeVisible();
-    expect(screen.getByText(/정확히 24시간 전도 포함/)).toBeVisible();
+    expect(screen.getByText("직접 취소 기한 10월 19일 (월) 오전 1:00까지 (시작 24시간 전)")).toBeVisible();
+    expect(screen.queryByText(/직접 취소할 수 있습니다/)).not.toBeInTheDocument();
   });
 
   it("R-33: 비용이 0원인 클래스는 예상 비용을 무료로 표시한다", async () => {
@@ -378,18 +426,18 @@ describe("BookingLookup", () => {
     expect(await screen.findByText("3명 (예상 비용 무료)")).toBeVisible();
   });
 
-  it("R-33: 승인 대기는 참여 확정이 아니라는 안내를 취소 기한과 직접 취소 안내 사이에 표시한다", async () => {
+  it("R-31, R-33: 승인 대기는 기준을 덧붙인 직접 취소 기한 다음에 참여 확정이 아니라는 안내를 표시한다", async () => {
     const user = userEvent.setup();
     renderLookup();
     await submitLookup(user);
 
     const meaning = await screen.findByText("승인 대기는 참여 확정이 아닙니다.");
-    const deadline = screen.getByText(/직접 취소 기한/);
-    const policy = screen.getByText("승인 대기는 회차 시작 시각 전까지 직접 취소할 수 있습니다.");
-    expect(meaning).toBeVisible();
-    expect(meaning.parentElement).toBe(policy.parentElement);
-    expect(deadline.compareDocumentPosition(meaning) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(meaning.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const notice = meaning.closest("ul");
+    expect(notice).toBeVisible();
+    expect(within(notice!).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "직접 취소 기한 10월 20일 (화) 오전 1:00까지 (회차 시작 전)",
+      "승인 대기는 참여 확정이 아닙니다.",
+    ]);
     expect(screen.queryByText(/참여 미확정 — 공방에 문의/)).not.toBeInTheDocument();
   });
 
@@ -419,13 +467,22 @@ describe("BookingLookup", () => {
     expect(screen.getByRole("button", { name: "예약 취소" })).toBeDisabled();
   });
 
-  it("R-31, R-32: 취소 불가인 확정 예약에는 취소 버튼 없이 기한 경과·공방 문의를 안내한다", async () => {
+  it.each([
+    { status: "pending", meaning: "승인 대기는 참여 확정이 아닙니다." },
+    { status: "confirmed", meaning: "참여가 확정되었습니다. 회차 시작 시각에 맞춰 방문해 주세요." },
+  ] as const)("R-31, R-32, R-33: 취소 불가인 $status 예약에는 기한 경과·공방 문의 한 줄과 상태를 표시한다", async ({ status, meaning }) => {
     const user = userEvent.setup();
-    apiMock.mockResolvedValue({ ...booking, status: "confirmed", canCancel: false });
+    apiMock.mockResolvedValue({ ...booking, status, canCancel: false });
     renderLookup();
     await submitLookup(user);
 
-    expect(await screen.findByText(/직접 취소할 수 있는 기한이 지났습니다.*공방에 문의해 주세요.*문의만으로 취소가 완료되지는 않습니다/)).toBeVisible();
+    const deadline = await screen.findByText("직접 취소할 수 있는 기한이 지났습니다. 공방에 문의해 주세요.");
+    const notice = deadline.closest("ul");
+    expect(notice).toBeVisible();
+    expect(within(notice!).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "직접 취소할 수 있는 기한이 지났습니다. 공방에 문의해 주세요.",
+      meaning,
+    ]);
     expect(screen.getByRole("button", { name: "예약 취소" })).toBeDisabled();
     expect(screen.getByRole("link", { name: "02-123-4567" })).toBeVisible();
   });
@@ -486,7 +543,7 @@ describe("BookingLookup", () => {
 
     await waitFor(() => expect(within(screen.getByRole("heading", { name: booking.class.title }).parentElement!).getByText("참여 확정")).toBeVisible());
     const steps = screen.getByRole("list", { name: "신청 처리 단계" });
-    expect(within(steps).getByText("참여 확정").closest("li")).toHaveAttribute("aria-current", "step");
+    expect(within(steps).getByText("참여 확정").closest("li")).toHaveTextContent("참여 확정 (완료)");
     expect(screen.getByText("부산 공방")).toBeVisible();
     expect(screen.getByText("2명 (예상 비용 ₩60,000)")).toBeVisible();
     expect(screen.getByText("계좌 이체")).toBeVisible();

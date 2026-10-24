@@ -5,39 +5,44 @@ import { BookingSteps } from "./booking-steps";
 
 afterEach(cleanup);
 
+function getSteps() {
+  const list = screen.getByRole("list", { name: "신청 처리 단계" });
+  expect(list.tagName).toBe("OL");
+  return within(list).getAllByRole("listitem");
+}
+
 describe("BookingSteps", () => {
-  it("R-10, R-33: 신청 완료와 운영자 확인 단계를 안내하고 참여 확정은 이후 단계로 표시한다", () => {
+  it("R-10, R-33: 승인 대기는 신청만 완료로 표시하고 운영자 확인·참여 확정은 진행 중 색 없이 남은 단계로 둔다", () => {
     render(<BookingSteps />);
 
-    const list = screen.getByRole("list", { name: "신청 처리 단계" });
-    expect(list.tagName).toBe("OL");
-    const steps = within(list).getAllByRole("listitem");
-    expect(steps.map((step) => step.textContent)).toEqual([
-      "신청 (완료)",
-      "운영자 확인 (현재 단계)",
-      "참여 확정",
-    ]);
-    expect(steps[0]).not.toHaveAttribute("aria-current");
-    expect(steps[1]).toHaveAttribute("aria-current", "step");
-    expect(steps[2]).not.toHaveAttribute("aria-current");
+    const steps = getSteps();
+    expect(steps.map((step) => step.textContent)).toEqual(["신청 (완료)", "운영자 확인", "참여 확정"]);
+    expect(steps[1].className).toBe(steps[2].className);
+    expect(steps[1].className).not.toBe(steps[0].className);
+    for (const step of steps) expect(step).not.toHaveAttribute("aria-current");
   });
 
-  it("R-33: 확정 예약은 신청·운영자 확인을 완료하고 참여 확정을 현재 단계로 표시한다", () => {
+  it("R-33: 참여 확정은 세 단계를 모두 완료로 표시한다", () => {
     render(<BookingSteps status="confirmed" />);
 
-    const steps = within(screen.getByRole("list", { name: "신청 처리 단계" })).getAllByRole("listitem");
-    expect(steps.map((step) => step.textContent)).toEqual([
-      "신청 (완료)",
-      "운영자 확인 (완료)",
-      "참여 확정 (현재 단계)",
-    ]);
-    expect(steps[0]).not.toHaveAttribute("aria-current");
-    expect(steps[1]).not.toHaveAttribute("aria-current");
-    expect(steps[2]).toHaveAttribute("aria-current", "step");
+    const steps = getSteps();
+    expect(steps.map((step) => step.textContent)).toEqual(["신청 (완료)", "운영자 확인 (완료)", "참여 확정 (완료)"]);
+    expect(new Set(steps.map((step) => step.className)).size).toBe(1);
+    for (const step of steps) expect(step).not.toHaveAttribute("aria-current");
   });
 
-  it.each(["rejected", "cancelled"] as const)("R-21, R-33: %s 예약은 참여 확정으로 진행 중인 단계를 표시하지 않는다", (status) => {
-    render(<BookingSteps status={status} />);
+  it("R-21, R-33: 거절됨은 신청·운영자 확인을 완료로 두고 마지막 단계를 참여 확정 대신 거절됨으로 표시한다", () => {
+    render(<BookingSteps status="rejected" />);
+
+    const steps = getSteps();
+    expect(steps.map((step) => step.textContent)).toEqual(["신청 (완료)", "운영자 확인 (완료)", "거절됨"]);
+    expect(steps[1].className).toBe(steps[0].className);
+    expect(steps[2].className).not.toBe(steps[0].className);
+    expect(screen.queryByText("참여 확정")).not.toBeInTheDocument();
+  });
+
+  it("R-21, R-33: 취소됨은 어느 단계에서 취소됐는지 알 수 없으므로 단계를 표시하지 않는다", () => {
+    render(<BookingSteps status="cancelled" />);
 
     expect(screen.queryByRole("list", { name: "신청 처리 단계" })).not.toBeInTheDocument();
   });

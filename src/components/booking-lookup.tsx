@@ -9,7 +9,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from "re
 import { toast } from "sonner";
 
 import { BookingSteps } from "@/components/booking-steps";
-import { LoadingPlaceholder } from "@/components/loading-placeholder";
+import { InfoNotice } from "@/components/info-notice";
 import { BookingStatusBadge, Tag } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogDescription, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -26,7 +26,6 @@ const inputClassName = "min-h-[52px] w-full min-w-0 rounded-[var(--radius-card)]
 const buttonClassName = "h-auto min-h-11 rounded-[var(--radius-card)] px-5 py-3 text-base font-medium whitespace-normal transition-[color,background-color,transform] duration-200 active:translate-y-0 active:scale-[.97] disabled:cursor-not-allowed disabled:bg-[var(--surface-sunk)] disabled:text-[var(--text-control-disabled)] disabled:opacity-100";
 const ghostClassName = `${buttonClassName} bg-[var(--surface-raised)] text-[var(--text-strong)] hover:bg-[var(--surface-sunk)]`;
 const softClassName = `${buttonClassName} bg-[var(--color-blurple-100)] text-[var(--color-blurple-600)] hover:bg-[var(--color-blurple-50)] hover:text-[var(--color-blurple-700)]`;
-const noticeClassName = "rounded-[var(--radius-control)] bg-[var(--surface-raised)] px-4 py-3.5 text-sm text-[var(--text-body)]";
 const errorClassName = "flex min-w-0 items-start gap-2 rounded-[var(--radius-control)] bg-[var(--status-danger-bg)] px-3.5 py-3 text-sm font-medium text-[var(--status-danger)]";
 const rowClassName = "grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-4 py-3 max-[641px]:grid-cols-[80px_minmax(0,1fr)]";
 const lostCodeMessage = "예약번호를 분실하셨나요? 공방에 예약자 이름과 전체 전화번호로 문의해 주세요.";
@@ -209,10 +208,11 @@ export function BookingLookup({ initialCode = "" }: { initialCode?: string }): J
         </form>
       </>}
 
-      {/* 결과 화면의 다시 조회는 이전 결과를 유지한 채 버튼 문구로 진행을 알린다. */}
-      {query.isFetching && !(resultView && booking) && <LoadingPlaceholder label="예약을 조회하고 있습니다…" rows={3} />}
+      {/* 조회 진행은 자리 표시 없이 누른 버튼 문구로 알리고, 화면 낭독기에는 상태 문구로 알린다. */}
+      {query.isFetching && !(resultView && booking) && <p role="status" className="sr-only">예약을 조회하고 있습니다…</p>}
 
-      {query.isError && (resultView || !notFound) && !query.isFetching && (
+      {/* 결과 화면의 재시도 중에는 화면이 비지 않게 오류 안내를 유지한다. */}
+      {query.isError && (resultView || (!notFound && !query.isFetching)) && (
         <div className="space-y-3">
           <div role="alert" className={errorClassName}>
             <CircleAlert aria-hidden="true" className="size-5 shrink-0" />
@@ -220,7 +220,7 @@ export function BookingLookup({ initialCode = "" }: { initialCode?: string }): J
               예약을 불러오지 못했습니다. {query.error instanceof ApiError ? query.error.message : ERROR_MESSAGE.INTERNAL_ERROR}
             </p>
           </div>
-          <Button type="button" variant="ghost" disabled={busy} onClick={retry} className={ghostClassName}>재시도</Button>
+          <Button type="button" variant="ghost" disabled={busy} onClick={retry} className={ghostClassName}>{query.isFetching ? "조회 중…" : "재시도"}</Button>
         </div>
       )}
 
@@ -278,17 +278,17 @@ export function BookingLookup({ initialCode = "" }: { initialCode?: string }): J
               <dd className="min-w-0 text-[var(--text-strong)] [overflow-wrap:anywhere]"><ContactValue value={booking.class.contact} /></dd>
             </div>
           </dl>
-          {/* 상태 안내는 첫 줄(취소 기한·기한 경과) 다음, 보조 안내 앞에 같은 글씨로 둔다. */}
-          <div className={`${noticeClassName} space-y-2`}>
-            {active && booking.canCancel && booking.cancelDeadline && (
-              <p className="font-semibold text-[var(--color-blurple-600)]">직접 취소 기한 {formatKstDateTime(booking.cancelDeadline)}까지</p>
-            )}
-            {active && !booking.canCancel && <p>직접 취소할 수 있는 기한이 지났습니다. 공방에 문의해 주세요. 문의만으로 취소가 완료되지는 않습니다.</p>}
-            <p className="text-[var(--text-muted)]">{statusMeaning(booking)}</p>
-            {active && booking.canCancel && <p className="text-[var(--text-muted)]">{booking.status === "pending"
-              ? "승인 대기는 회차 시작 시각 전까지 직접 취소할 수 있습니다."
-              : "참여 확정은 시작 24시간 전까지 직접 취소할 수 있습니다. 정확히 24시간 전도 포함합니다."}</p>}
-          </div>
+          <InfoNotice>
+            <ul>
+              {active && booking.canCancel && booking.cancelDeadline && (
+                <li className="font-semibold text-[var(--color-blurple-600)]">직접 취소 기한 {formatKstDateTime(booking.cancelDeadline)}까지 ({booking.status === "pending" ? "회차 시작 전" : "시작 24시간 전"})</li>
+              )}
+              {active && !booking.canCancel && (
+                <li className="font-semibold text-[var(--color-magenta-600)]">직접 취소할 수 있는 기한이 지났습니다. 공방에 문의해 주세요.</li>
+              )}
+              <li className="text-[var(--text-muted)]">{statusMeaning(booking)}</li>
+            </ul>
+          </InfoNotice>
 
           {/* 예약 취소·다른 회차 신청하기는 왼쪽, 다시 조회는 오른쪽 끝에 두어 잘못 누르지 않게 떨어뜨린다. */}
           <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border-subtle)] pt-5">
