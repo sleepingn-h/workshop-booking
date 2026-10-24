@@ -165,7 +165,7 @@ TODO: 공개용 데모 비밀번호
 
 샘플의 이름·주소·전화번호는 시연용 가상 데이터입니다. 아래는 SQL 샘플 주석 표이며 예상 상태는 초기화 직후 기준입니다. 전화번호 뒷자리는 앞자리 0을 포함한 네 자리로 입력합니다.
 
-A는 도자기, B는 가죽, C는 회차가 없어 공개할 수 없는 비공개 꽃다발(공개 차단 시연), D는 비공개 캔들 클래스입니다. 상대 시각은 SQL 실행 시점을 기준으로 합니다.
+A는 도자기, B는 가죽, C는 회차가 없어 공개할 수 없는 비공개 꽃다발(공개 차단 시연), D는 비공개 캔들 클래스입니다. 상대 시각은 SQL 실행 시점을 기준으로 합니다. 이 밖에 목록을 채우는 공개 클래스 E~N 10개가 있습니다. SQL 실행일(서울) 기준 9~32일 뒤 정각에 회차가 2개씩 있고 예약은 없습니다.
 
 | 예약번호 | 전화번호 뒷자리 | 클래스·회차 | 예상 상태 | 시연 용도 |
 | --- | --- | --- | --- | --- |
@@ -191,6 +191,8 @@ A는 도자기, B는 가죽, C는 회차가 없어 공개할 수 없는 비공�
 | `class-2.jpg` | B 가죽 | [Joel Lee](https://unsplash.com/photos/-MAUCFjyKBA) |
 | `class-3.jpg` | C 꽃다발 | [Yura Batiushyn](https://unsplash.com/photos/a-bouquet-of-pink-tulips-wrapped-in-brown-paper-ndSBB4GI15k) |
 | `class-4.jpg` | D 캔들 | [Mediamodifier](https://unsplash.com/photos/white-pillar-candle-on-white-fur-textile-G5LVF0EW9CI) |
+
+목록용 클래스 중 E 부케·G 캔들·J 가죽 키링·L 물레 접시는 각각 `class-3`·`class-4`·`class-2`·`class-1`을 다시 쓰고, 나머지 6개는 이미지 없이 기본 아이콘으로 표시합니다.
 
 ## 시연 순서
 

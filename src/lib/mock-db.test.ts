@@ -11,8 +11,26 @@ const potteryInfo = { place: "가상 도자기 공방, 시연시 공방로 1 (�
 const leatherInfo = { place: "가상 가죽 공방, 시연시 공방로 2 (가상 주소)", durationMinutes: 150, price: 55000 };
 const flowerInfo = { place: "가상 꽃 공방, 시연시 공방로 3 (가상 주소)", durationMinutes: 90, price: 0 };
 const candleInfo = { place: "가상 캔들 공방, 시연시 공방로 4 (가상 주소)", durationMinutes: 120, price: 40000 };
+const classId = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const sessionId = (n: number) => `20000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const at = (offset: number) => new Date(now.getTime() + offset).toISOString();
+// 목록용 클래스 E~N의 회차는 서울 기준 오늘(10월 19일) 자정에서 날짜·정각을 더한다.
+const kstAt = (days: number, hour: number) => new Date(Date.parse("2026-10-18T15:00:00.000Z") + days * DAY + hour * HOUR).toISOString();
+const listingClasses = [
+  { n: 5, title: "제철 꽃 핸드타이드 부케", place: "가상 플라워 스튜디오, 시연시 공방로 5 (가상 주소)", durationMinutes: 120, price: 65000, imageUrl: "/samples/class-3.jpg", hour: 15, capacity: 6 },
+  { n: 6, title: "두드려 만드는 은반지", place: "가상 금속 공방, 시연시 공방로 6 (가상 주소)", durationMinutes: 180, price: 75000, imageUrl: null, hour: 14, capacity: 4 },
+  { n: 7, title: "소이 캔들과 왁스 태블릿", place: "가상 향기 공방, 시연시 공방로 7 (가상 주소)", durationMinutes: 120, price: 48000, imageUrl: "/samples/class-4.jpg", hour: 19, capacity: 8 },
+  { n: 8, title: "원목 치즈 도마", place: "가상 목공 공방, 시연시 공방로 8 (가상 주소)", durationMinutes: 180, price: 70000, imageUrl: null, hour: 10, capacity: 6 },
+  { n: 9, title: "매듭으로 엮는 마크라메 월 행잉", place: "가상 실 공방, 시연시 공방로 9 (가상 주소)", durationMinutes: 120, price: 38000, imageUrl: null, hour: 15, capacity: 8 },
+  { n: 10, title: "이름을 새기는 가죽 키링", place: "가상 가죽 작업실, 시연시 공방로 10 (가상 주소)", durationMinutes: 90, price: 35000, imageUrl: "/samples/class-2.jpg", hour: 11, capacity: 8 },
+  { n: 11, title: "천연 재료 비누 만들기", place: "가상 비누 공방, 시연시 공방로 11 (가상 주소)", durationMinutes: 90, price: 32000, imageUrl: null, hour: 11, capacity: 10 },
+  { n: 12, title: "물레로 빚는 오목 접시", place: "가상 물레 공방, 시연시 공방로 12 (가상 주소)", durationMinutes: 150, price: 60000, imageUrl: "/samples/class-1.jpg", hour: 14, capacity: 6 },
+  { n: 13, title: "프랑스 자수 꽃 브로치", place: "가상 자수 공방, 시연시 공방로 13 (가상 주소)", durationMinutes: 120, price: 30000, imageUrl: null, hour: 19, capacity: 6 },
+  { n: 14, title: "라탄 컵받침 엮기 체험", place: "가상 라탄 공방, 시연시 공방로 14 (가상 주소)", durationMinutes: 60, price: 0, imageUrl: null, hour: 16, capacity: 10 },
+];
+const listingIds = listingClasses.map(({ n }) => classId(n));
+const listingSummary = ({ n, title, place, durationMinutes, price, imageUrl }: (typeof listingClasses)[number]) =>
+  ({ id: classId(n), title, place, durationMinutes, price, imageUrl });
 const credentials = (n: number) => ({
   code: `BK-DEMO${String(n).padStart(2, "0")}`,
   phoneLast4: String(n).padStart(4, "0"),
@@ -83,15 +101,29 @@ describe("고객 클래스 조회", () => {
     expect(db.mockListPublishedClasses(now)).toEqual([
       { id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg" },
       { id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg" },
+      ...listingClasses.map(listingSummary),
     ]);
   });
 
   it("R-59 요청 시각에 예정 회차가 없어진 공개 클래스는 목록·상세에서 숨긴다", () => {
     const afterLeather = new Date(at(7 * DAY));
-    expect(db.mockListPublishedClasses(new Date(at(6 * DAY))).map(({ id }) => id)).toEqual([leatherId]);
-    expect(db.mockListPublishedClasses(afterLeather)).toEqual([]);
+    const lastStart = Date.parse(kstAt(32, 16));
+    const visibleIds = (requestedAt: Date) => db.mockListPublishedClasses(requestedAt).map(({ id }) => id);
+    expect(visibleIds(new Date(at(6 * DAY)))).toEqual([leatherId, ...listingIds]);
+    expect(visibleIds(afterLeather)).toEqual(listingIds);
+    expect(visibleIds(new Date(lastStart - 1))).toEqual([classId(14)]);
+    expect(db.mockListPublishedClasses(new Date(lastStart))).toEqual([]);
     expect(db.mockGetPublishedClass(potteryId, new Date(at(5 * DAY)))).toBeNull();
     expect(db.mockGetPublishedClass(leatherId, afterLeather)).toBeNull();
+  });
+
+  it("R-54 R-59 목록용 클래스 E~N은 서울 기준 정각에 2주 간격의 빈 회차 2개를 가진다", () => {
+    listingClasses.forEach(({ n, hour, capacity }, index) => {
+      expect(db.mockGetPublishedClass(classId(n), now)?.sessions).toEqual([
+        { id: sessionId(8 + index), startsAt: kstAt(9 + index, hour), capacity, remaining: capacity },
+        { id: sessionId(18 + index), startsAt: kstAt(23 + index, hour), capacity, remaining: capacity },
+      ]);
+    });
   });
 
   it("R-53 모든 샘플 클래스는 소개와 안내 항목이 클래스 입력 검증을 통과한다", () => {
@@ -231,7 +263,8 @@ describe("운영자 예약 목록", () => {
       "BK-DEMO05", "BK-DEMO04", "BK-DEMO01", "BK-DEMO02", "BK-DEMO03",
       "BK-DEMO06", "BK-DEMO07", "BK-DEMO11", "BK-DEMO08", "BK-DEMO09", "BK-DEMO10",
     ]);
-    expect(result.sessions.map(({ id }) => id)).toEqual([4, 3, 1, 2, 5, 7, 6].map(sessionId));
+    const listingSessions = Array.from({ length: 20 }, (_, index) => 8 + index);
+    expect(result.sessions.map(({ id }) => id)).toEqual([4, 3, 1, 2, 5, 7, 6, ...listingSessions].map(sessionId));
     expect(result.sessions.find(({ id }) => id === sessionId(5))?.status).toBe("cancelled");
     expect(result.sessions.find(({ id }) => id === sessionId(7))?.classTitle).toBe("향을 고르는 캔들 클래스");
   });
@@ -284,8 +317,9 @@ describe("운영자 예약 목록", () => {
 });
 
 describe("운영자 클래스 조회", () => {
-  it("R-17 R-52 R-53 R-54 비공개 포함 4개 클래스를 최신 순으로 반환하고 장소·소요 시간·비용과 예정 회차·승인 대기를 센다", () => {
+  it("R-17 R-52 R-53 R-54 비공개 포함 14개 클래스를 최신 순으로 반환하고 장소·소요 시간·비용과 예정 회차·승인 대기를 센다", () => {
     expect(db.mockListAdminClasses(now)).toEqual([
+      ...listingClasses.map((workshop) => ({ ...listingSummary(workshop), isPublished: true, upcomingSessionCount: 2, pendingCount: 0 })).reverse(),
       { id: candleId, title: "향을 고르는 캔들 클래스", ...candleInfo, imageUrl: "/samples/class-4.jpg", isPublished: false, upcomingSessionCount: 1, pendingCount: 1 },
       { id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg", isPublished: false, upcomingSessionCount: 0, pendingCount: 0 },
       { id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg", isPublished: true, upcomingSessionCount: 1, pendingCount: 1 },
