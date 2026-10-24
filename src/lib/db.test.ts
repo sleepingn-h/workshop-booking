@@ -326,6 +326,15 @@ describe("공개 클래스 조회", () => {
     expect(client.queries.map(({ table }) => table)).toEqual(["classes"]);
   });
 
+  it("R-52 생성 시각이 같은 클래스는 id 순으로 정렬해 수정 후에도 목록 순서가 바뀌지 않는다", async () => {
+    client.queue("classes", []);
+    await db.listPublishedClasses();
+    expect(client.queries[0].chain.order.mock.calls).toEqual([
+      ["created_at", { ascending: true }],
+      ["id", { ascending: true }],
+    ]);
+  });
+
   it("R-59 목록 조회 중 시각이 바뀌어도 진입 시각으로 예정 회차를 판정한다", async () => {
     const startsAt = new Date(now.getTime() + 1).toISOString();
     client.queue("classes", [{ ...workshop, sessions: [{ id: sessionId, starts_at: startsAt, status: "scheduled" }] }], null, () => vi.setSystemTime("2026-10-25T00:00:00Z"));
@@ -738,7 +747,10 @@ describe("운영자 클래스 조회와 저장", () => {
       { id: privateClass.id, title: privateClass.title, ...listInfo, isPublished: false, imageUrl: null, upcomingSessionCount: 0, pendingCount: 0 },
       { id: classId, title: workshop.title, ...listInfo, isPublished: true, imageUrl: workshop.image_url, upcomingSessionCount: 1, pendingCount: 3 },
     ]);
-    expect(client.queries[0].chain.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(client.queries[0].chain.order.mock.calls).toEqual([
+      ["created_at", { ascending: false }],
+      ["id", { ascending: true }],
+    ]);
     expect(client.queries[0].chain.eq).not.toHaveBeenCalled();
     expect(client.queries[0].chain.select).toHaveBeenCalledWith(expect.stringContaining("sessions(id,starts_at,status)"));
     expect(client.queries[1].chain.select).toHaveBeenCalledWith("session_id");

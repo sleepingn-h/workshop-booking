@@ -255,6 +255,8 @@ export async function listPublishedClasses(): Promise<ClassSummary[]> {
     .select(`${CLASS_COLUMNS},sessions(id,starts_at,status)`)
     .eq("is_published", true)
     .order("created_at", { ascending: true })
+    // 같은 트랜잭션에서 만든 샘플처럼 생성 시각이 같으면 행 저장 순서를 따르므로, 수정해도 순서가 바뀌지 않게 id로 한 번 더 정렬한다.
+    .order("id", { ascending: true })
     .returns<ClassWithSessionsRow[]>();
   if (error) throw toAppError(error);
   return (classes ?? [])
@@ -510,6 +512,7 @@ export async function listAdminClasses(): Promise<AdminClassSummary[]> {
     .from("classes")
     .select(`${CLASS_COLUMNS},sessions(id,starts_at,status)`)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: true })
     .returns<ClassWithSessionsRow[]>();
   if (error) throw toAppError(error);
   const rows = data ?? [];
