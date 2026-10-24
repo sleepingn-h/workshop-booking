@@ -47,7 +47,7 @@ export default async function Home() {
             <li key={workshop.id} className="min-w-0">
               <Link
                 href={`/classes/${workshop.id}`}
-                className="flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-card)] text-[var(--text-body)] shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(.22,1,.36,1)] [@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-1 [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[var(--shadow-raised)]"
+                className="flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-card)] text-[var(--text-body)] shadow-[var(--shadow-card)] transition-shadow duration-200 ease-[cubic-bezier(.22,1,.36,1)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[var(--shadow-raised)] [@media(hover:hover)_and_(pointer:fine)]:hover:ring-2 [@media(hover:hover)_and_(pointer:fine)]:hover:ring-[var(--border-strong)]"
               >
                 <div className={`relative aspect-[4/3] ${placeholderTones[index % placeholderTones.length]}`}>
                   {workshop.imageUrl ? (

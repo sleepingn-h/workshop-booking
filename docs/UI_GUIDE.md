@@ -115,7 +115,7 @@ shadcn/ui 컴포넌트를 CLI로 추가한 뒤 테마 변수와 래퍼(variant·
 흰 카드: bg surface-card, radius 16px, shadow 카드, padding 24~28px(운영자 폼 32px), 내부 gap 12~24px
 보조 카드: bg surface-raised, 그림자 없음
 클래스 목록 카드: 이미지(4:3) + 본문 padding 20px 20px 22px, gap 10px. 제목 아래 장소·소요 시간·비용을 한 줄씩(14px, 아이콘 16px text-muted, 행 gap 6px, 장소는 말줄임)
-  hover(포인터 기기만): translateY(-4px) + 강한 그림자, 200ms
+  hover(포인터 기기만): 강한 그림자 + 2px 테두리 border-strong(바깥쪽 ring이라 크기·위치 변화 없음), 200ms
 ```
 
 ### 버튼
@@ -265,7 +265,7 @@ scrim rgba(10,13,58,.45) · 본문 흰색, radius 20px, padding 40px, 최대 폭
 
 ## 애니메이션
 
-- 클래스 카드 hover 이동·그림자: 200ms `cubic-bezier(.22,1,.36,1)`, 포인터 기기에서만.
+- 클래스 카드 hover 그림자·테두리: 200ms `cubic-bezier(.22,1,.36,1)`, 포인터 기기에서만.
 - 버튼·회차 버튼 누름: scale(.97 / .98), 200ms `cubic-bezier(.34,1.56,.64,1)`.
 - 테두리·배경 색 전환: 120ms.
 - 토스트 등장: 아래에서 8px 올라오며 fade-in, 220ms.
