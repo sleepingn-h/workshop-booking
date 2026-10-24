@@ -216,11 +216,6 @@ export function isVisibleSession(
   return session.status === "scheduled" && now.getTime() < session.startsAt.getTime();
 }
 
-// 시작 순으로 정렬한 공개 회차에서 목록에 보여줄 다음 회차를 고른다.
-export function nextBookableSession<T extends { remaining: number }>(sessions: readonly T[]): T | null {
-  return sessions.find((session) => session.remaining > 0) ?? sessions[0] ?? null;
-}
-
 export function validateClassInput(input: unknown): Validated<ClassInput, keyof ClassInput> {
   const data = inputRecord(input);
   const value: Partial<ClassInput> = {};

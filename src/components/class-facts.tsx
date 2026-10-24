@@ -58,3 +58,26 @@ export function ClassSummaryLine({ info, className = "" }: { info: ClassListInfo
     </p>
   );
 }
+
+// 고객 목록 카드는 장소·소요 시간·비용을 한 줄씩 두고, 긴 장소는 말줄임한다.
+export function ClassListFacts({ info, className = "" }: { info: ClassListInfo; className?: string }): JSX.Element {
+  const facts: ClassFact[] = [
+    { key: "place", label: "장소", value: info.place },
+    { key: "duration", label: "소요 시간", value: formatDuration(info.durationMinutes) },
+    { key: "price", label: "비용 (1인)", value: formatPrice(info.price) },
+  ];
+  return (
+    <dl className={`min-w-0 space-y-1.5 text-sm ${className}`}>
+      {facts.map((fact) => {
+        const Icon = factIcons[fact.key];
+        return (
+          <div key={fact.key} className="flex min-w-0 items-center gap-2">
+            <Icon aria-hidden="true" className="size-4 shrink-0 text-[var(--text-muted)]" />
+            <dt className="sr-only">{fact.label}</dt>
+            <dd className="truncate">{fact.value}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}

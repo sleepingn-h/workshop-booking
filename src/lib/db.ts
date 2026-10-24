@@ -24,7 +24,6 @@ import {
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
-  nextBookableSession,
   remainingSeats,
   validateBookingInput,
   validateClassInput,
@@ -239,35 +238,12 @@ export async function listPublishedClasses(): Promise<ClassSummary[]> {
     .order("created_at", { ascending: true })
     .returns<ClassRow[]>();
   if (error) throw toAppError(error);
-  if (!classes?.length) return [];
-
-  const { data: sessions, error: sessionsError } = await getClient()
-    .from("sessions")
-    .select(SESSION_COLUMNS)
-    .in("class_id", classes.map((row) => row.id))
-    .order("starts_at", { ascending: true })
-    .returns<SessionRow[]>();
-  if (sessionsError) throw toAppError(sessionsError);
-
-  const visible = visibleSessions(sessions ?? [], now);
-  const occupied = await readOccupied(visible.map((row) => row.id));
-  return classes.map((row) => {
-    const next = nextBookableSession(visible
-      .filter((session) => session.class_id === row.id)
-      .map((session) => ({
-        startsAt: session.starts_at,
-        remaining: remainingSeats(session.capacity, occupied.get(session.id) ?? 0),
-      })));
-    return {
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      ...toClassListInfo(row),
-      imageUrl: row.image_url,
-      nextSessionAt: next?.startsAt ?? null,
-      nextSessionRemaining: next?.remaining ?? null,
-    };
-  });
+  return (classes ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    ...toClassListInfo(row),
+    imageUrl: row.image_url,
+  }));
 }
 
 async function readOccupied(sessionIds: string[]): Promise<Map<string, number>> {

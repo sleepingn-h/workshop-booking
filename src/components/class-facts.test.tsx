@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ClassFacts, ClassSummaryLine } from "./class-facts";
+import { ClassFacts, ClassListFacts, ClassSummaryLine } from "./class-facts";
 
 const info = {
   place: "가상 도자기 공방",
@@ -51,5 +51,20 @@ describe("ClassSummaryLine", () => {
     render(<ClassSummaryLine info={{ ...info, price: 0 }} />);
 
     expect(screen.getByText("무료")).toBeVisible();
+  });
+});
+
+describe("ClassListFacts", () => {
+  it("R-53: 고객 목록 카드에 장소·소요 시간·비용을 항목별 한 줄로 순서대로 보여준다", () => {
+    render(<ClassListFacts info={info} />);
+
+    expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual(["장소", "소요 시간", "비용 (1인)"]);
+    expect(screen.getAllByRole("definition").map((definition) => definition.textContent)).toEqual(["가상 도자기 공방", "120분", "₩45,000"]);
+  });
+
+  it("R-53: 비용이 0원이면 무료로 보여준다", () => {
+    render(<ClassListFacts info={{ ...info, price: 0 }} />);
+
+    expect(screen.getAllByRole("definition")[2]).toHaveTextContent("무료");
   });
 });

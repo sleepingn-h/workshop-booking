@@ -114,7 +114,7 @@ shadcn/ui 컴포넌트를 CLI로 추가한 뒤 테마 변수와 래퍼(variant·
 ```
 흰 카드: bg surface-card, radius 16px, shadow 카드, padding 24~28px(운영자 폼 32px), 내부 gap 12~24px
 보조 카드: bg surface-raised, 그림자 없음
-클래스 목록 카드: 이미지(4:3) + 본문 padding 20px 20px 22px, gap 10px. 하단 '다음 회차' 행은 위 구분선 + 14px
+클래스 목록 카드: 이미지(4:3) + 본문 padding 20px 20px 22px, gap 10px. 제목 아래 장소·소요 시간·비용을 한 줄씩(14px, 아이콘 16px text-muted, 행 gap 6px, 장소는 말줄임)
   hover(포인터 기기만): translateY(-4px) + 강한 그림자, 200ms
 ```
 

@@ -303,45 +303,16 @@ describe("Supabase 클라이언트와 에러 처리", () => {
 });
 
 describe("공개 클래스 조회", () => {
-  it("R-52 R-53 R-54 공개 클래스마다 장소·소요 시간·비용과 신청 가능한 다음 회차와 남은 자리를, 모두 마감이면 첫 회차를, 없으면 null을 준다", async () => {
-    const fullClass = { ...workshop, id: "10000000-0000-4000-8000-000000000003" };
-    const emptyClass = { ...workshop, id: "10000000-0000-4000-8000-000000000002", image_url: null };
-    const earlyFullId = "20000000-0000-4000-8000-000000000002";
-    const laterId = "20000000-0000-4000-8000-000000000003";
-    const onlyFullId = "20000000-0000-4000-8000-000000000004";
-    client.queue("classes", [workshop, fullClass, emptyClass]);
-    client.queue("sessions", [
-      { ...session, id: laterId, starts_at: "2026-10-22T03:00:00.123Z" },
-      { ...session, id: "20000000-0000-4000-8000-000000000005", starts_at: now.toISOString() },
-      { ...session, id: "20000000-0000-4000-8000-000000000006", starts_at: "2026-10-18T03:00:00.123Z", status: "cancelled" },
-      { ...session, id: earlyFullId, starts_at: "2026-10-19T03:00:00.123Z" },
-      session,
-      { ...session, id: onlyFullId, class_id: fullClass.id, starts_at: "2026-10-23T03:00:00.123Z" },
-    ]);
-    client.queue("session_stats", [
-      stats,
-      { ...stats, session_id: earlyFullId, occupied: 6 },
-      { ...stats, session_id: onlyFullId, occupied: 6 },
-    ]);
+  it("R-52 R-53 공개 클래스마다 이름·장소·소요 시간·비용·이미지만 주고 회차·남은 자리는 조회하지 않는다", async () => {
+    const noImageClass = { ...workshop, id: "10000000-0000-4000-8000-000000000002", image_url: null };
+    client.queue("classes", [workshop, noImageClass]);
 
     await expect(db.listPublishedClasses()).resolves.toEqual([
-      { id: classId, title: workshop.title, description: workshop.description, ...listInfo, imageUrl: workshop.image_url, nextSessionAt: session.starts_at, nextSessionRemaining: 4 },
-      { id: fullClass.id, title: workshop.title, description: workshop.description, ...listInfo, imageUrl: workshop.image_url, nextSessionAt: "2026-10-23T03:00:00.123Z", nextSessionRemaining: 0 },
-      { id: emptyClass.id, title: workshop.title, description: workshop.description, ...listInfo, imageUrl: null, nextSessionAt: null, nextSessionRemaining: null },
+      { id: classId, title: workshop.title, ...listInfo, imageUrl: workshop.image_url },
+      { id: noImageClass.id, title: workshop.title, ...listInfo, imageUrl: null },
     ]);
     expect(client.queries[0].chain.eq).toHaveBeenCalledWith("is_published", true);
-    expect(client.queries.find(({ table }) => table === "session_stats")?.chain.in)
-      .toHaveBeenCalledWith("session_id", [earlyFullId, sessionId, laterId, onlyFullId]);
-  });
-
-  it("R-54 표시할 회차가 없으면 남은 자리를 조회하지 않는다", async () => {
-    client.queue("classes", [workshop]);
-    client.queue("sessions", [{ ...session, status: "cancelled" }]);
-
-    await expect(db.listPublishedClasses()).resolves.toEqual([
-      expect.objectContaining({ id: classId, nextSessionAt: null, nextSessionRemaining: null }),
-    ]);
-    expect(client.queries.map(({ table }) => table)).toEqual(["classes", "sessions"]);
+    expect(client.queries.map(({ table }) => table)).toEqual(["classes"]);
   });
 
   it("R-52 공개 클래스가 없으면 빈 목록을 반환한다", async () => {

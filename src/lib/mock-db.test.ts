@@ -79,11 +79,11 @@ describe("목 데이터 모드 플래그", () => {
 });
 
 describe("고객 클래스 조회", () => {
-  it("R-52 R-53 R-54 공개 클래스만 삽입 순서로 표시하고 장소·소요 시간·비용과 다음 회차를 반환한다", () => {
+  it("R-52 R-53 공개 클래스만 삽입 순서로 표시하고 이름·장소·소요 시간·비용·이미지를 반환한다", () => {
     expect(db.mockListPublishedClasses(now)).toEqual([
-      expect.objectContaining({ id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg", nextSessionAt: at(20 * HOUR), nextSessionRemaining: 3 }),
-      expect.objectContaining({ id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg", nextSessionAt: at(7 * DAY), nextSessionRemaining: 5 }),
-      expect.objectContaining({ id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg", nextSessionAt: null, nextSessionRemaining: null }),
+      { id: potteryId, title: "손으로 빚는 도자기 컵", ...potteryInfo, imageUrl: "/samples/class-1.jpg" },
+      { id: leatherId, title: "나만의 가죽 카드 지갑", ...leatherInfo, imageUrl: "/samples/class-2.jpg" },
+      { id: flowerId, title: "작은 꽃다발 만들기", ...flowerInfo, imageUrl: "/samples/class-3.jpg" },
     ]);
   });
 
@@ -127,9 +127,7 @@ describe("고객 클래스 조회", () => {
     expect(db.mockGetPublishedClass(potteryId, startsAt)?.sessions.map(({ id }) => id)).toEqual([
       sessionId(1), sessionId(2),
     ]);
-    expect(db.mockListPublishedClasses(startsAt)[0].nextSessionAt).toBe(at(4 * DAY));
     expect(db.mockGetPublishedClass(potteryId, new Date(at(8 * DAY)))?.sessions).toEqual([]);
-    expect(db.mockListPublishedClasses(new Date(at(8 * DAY))).every(({ nextSessionAt }) => nextSessionAt === null)).toBe(true);
   });
 
   it("R-01 R-02 R-54 자리 계산과 표시 판정에 기존 순수 규칙을 재사용한다", () => {

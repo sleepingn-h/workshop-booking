@@ -137,14 +137,11 @@ export type PublicSession = {
   remaining: number;
 };
 
+// 고객 목록 카드는 회차·남은 자리를 보여주지 않는다. 일정은 상세에서 확인한다.
 export type ClassSummary = {
   id: string;
   title: string;
-  description: string;
   imageUrl: string | null;
-  // 신청 가능한 다음 회차(모두 마감이면 첫 회차)와 그 남은 자리. 표시할 회차가 없으면 둘 다 null이다.
-  nextSessionAt: string | null;
-  nextSessionRemaining: number | null;
 } & ClassListInfo;
 
 export type ClassDetail = {

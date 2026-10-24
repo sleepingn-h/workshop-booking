@@ -5,7 +5,6 @@ import {
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
-  nextBookableSession,
   normalizePhone,
   occupiedSeats,
   remainingSeats,
@@ -222,18 +221,13 @@ export function isMockDb(): boolean {
 }
 
 export function mockListPublishedClasses(now: Date): ClassSummary[] {
-  return CLASSES.filter((workshop) => workshop.isPublished).map((workshop) => {
-    const next = nextBookableSession(publicSessions(workshop.id, now));
-    return {
-      id: workshop.id,
-      title: workshop.title,
-      description: workshop.description,
-      ...listInfo(workshop),
-      imageUrl: workshop.imageUrl,
-      nextSessionAt: next?.startsAt ?? null,
-      nextSessionRemaining: next?.remaining ?? null,
-    };
-  });
+  void now;
+  return CLASSES.filter((workshop) => workshop.isPublished).map((workshop) => ({
+    id: workshop.id,
+    title: workshop.title,
+    ...listInfo(workshop),
+    imageUrl: workshop.imageUrl,
+  }));
 }
 
 function publicSessions(id: string, now: Date): ClassDetail["sessions"] {

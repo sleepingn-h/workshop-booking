@@ -18,7 +18,6 @@ import {
   canTransition,
   customerCancelDeadline,
   isVisibleSession,
-  nextBookableSession,
   normalizePhone,
   occupiedSeats,
   remainingSeats,
@@ -388,16 +387,6 @@ describe("공개 회차", () => {
     expect(isVisibleSession(session, startsAt)).toBe(false);
     expect(isVisibleSession(session, new Date(startsAt.getTime() + 1))).toBe(false);
     expect(isVisibleSession({ ...session, status: "cancelled" }, now)).toBe(false);
-  });
-
-  it("R-54 목록의 다음 회차는 시작 순으로 처음 남은 자리가 있는 회차이고, 모두 마감이면 첫 회차, 없으면 null이다", () => {
-    const full = { id: "full", remaining: 0 };
-    const open = { id: "open", remaining: 2 };
-    const later = { id: "later", remaining: 5 };
-
-    expect(nextBookableSession([full, open, later])).toBe(open);
-    expect(nextBookableSession([full, { ...full, id: "full-2" }])).toBe(full);
-    expect(nextBookableSession([])).toBeNull();
   });
 });
 
