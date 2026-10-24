@@ -112,6 +112,38 @@ afterEach(() => {
 });
 
 describe("BookingLookup", () => {
+  it("R-30, R-33: 조회 입력 화면에는 신청 처리 단계를 표시하지 않는다", () => {
+    renderLookup();
+
+    expect(screen.getByRole("form", { name: "예약 조회" })).toBeVisible();
+    expect(screen.queryByRole("list", { name: "신청 처리 단계" })).not.toBeInTheDocument();
+  });
+
+  it.each(["pending", "confirmed"] as const)("R-10, R-33: %s 조회 결과의 제목 아래, 신청 내용 위에 실제 상태에 맞는 신청 처리 단계를 표시한다", async (status) => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue({ ...booking, status });
+    renderLookup();
+    await submitLookup(user);
+
+    const title = await findResultTitle();
+    const steps = screen.getByRole("list", { name: "신청 처리 단계" });
+    expect(steps).toBeVisible();
+    expect(title.compareDocumentPosition(steps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(steps.compareDocumentPosition(screen.getByText("신청자")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const currentStep = within(steps).getAllByRole("listitem").find((step) => step.getAttribute("aria-current") === "step");
+    expect(currentStep).toHaveTextContent(status === "confirmed" ? "참여 확정" : "운영자 확인");
+  });
+
+  it.each(["rejected", "cancelled"] as const)("R-33: %s 조회 결과에는 운영자 확인 중인 신청 처리 단계를 표시하지 않는다", async (status) => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue({ ...booking, status });
+    renderLookup();
+    await submitLookup(user);
+
+    await findResultTitle();
+    expect(screen.queryByRole("list", { name: "신청 처리 단계" })).not.toBeInTheDocument();
+  });
+
   it("R-30: initialCode를 미리 채우고 네 자리 숫자 입력을 제공하되 제출 전에는 조회하지 않는다", () => {
     renderLookup(booking.code);
 
@@ -165,6 +197,7 @@ describe("BookingLookup", () => {
     expect(title).toHaveFocus();
     expect(screen.queryByRole("form", { name: "예약 조회" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "예약 조회" })).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "신청 처리 단계" })).toBeVisible();
     expect(window.location.search).toBe("?code=BK-TEST01&view=result");
     expect(window.history.pushState).toHaveBeenCalledOnce();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0 });
@@ -181,9 +214,11 @@ describe("BookingLookup", () => {
     expect(screen.getByLabelText("예약번호")).toHaveValue(booking.code);
     expect(screen.getByLabelText("전화번호 뒷자리 4자리")).toHaveValue("0007");
     expect(screen.queryByText(booking.class.title)).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "신청 처리 단계" })).not.toBeInTheDocument();
 
     window.history.forward();
     expect(await findResultTitle()).toBeVisible();
+    expect(screen.getByRole("list", { name: "신청 처리 단계" })).toBeVisible();
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
@@ -306,7 +341,8 @@ describe("BookingLookup", () => {
     renderLookup();
     await submitLookup(user);
 
-    expect(await screen.findByText(BOOKING_STATUS_LABEL[status])).toBeVisible();
+    const title = await findResultTitle();
+    expect(within(title.parentElement!).getByText(BOOKING_STATUS_LABEL[status])).toBeVisible();
   });
 
   it("R-31, R-33, R-58: 신청자·일시·장소·인원(예상 비용)·결제 방법·문의처만 차례로 표시하고 확정 예약의 취소 기한을 한국 시각으로 표시한다", async () => {
@@ -448,7 +484,9 @@ describe("BookingLookup", () => {
     });
     await user.click(screen.getByRole("button", { name: "다시 조회" }));
 
-    expect(await screen.findByText("참여 확정")).toBeVisible();
+    await waitFor(() => expect(within(screen.getByRole("heading", { name: booking.class.title }).parentElement!).getByText("참여 확정")).toBeVisible());
+    const steps = screen.getByRole("list", { name: "신청 처리 단계" });
+    expect(within(steps).getByText("참여 확정").closest("li")).toHaveAttribute("aria-current", "step");
     expect(screen.getByText("부산 공방")).toBeVisible();
     expect(screen.getByText("2명 (예상 비용 ₩60,000)")).toBeVisible();
     expect(screen.getByText("계좌 이체")).toBeVisible();

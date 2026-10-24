@@ -1,16 +1,18 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, CircleAlert, Info, Minus, Plus } from "lucide-react";
+import { ArrowRight, CircleAlert, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from "react";
 
+import { saveBookingReceipt } from "@/components/booking-receipt";
+import { InfoNotice } from "@/components/info-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError, apiFetch } from "@/lib/api";
-import { formatKstDate, formatKstTime } from "@/lib/format";
+import { formatKstDate, formatKstTime, maskName, maskPhone } from "@/lib/format";
 import { MAX_HEADCOUNT, MIN_HEADCOUNT, validateBookingInput } from "@/lib/rules";
 import {
   ERROR_MESSAGE,
@@ -32,9 +34,15 @@ const fieldOrder = ["sessionId", "headcount", "customerName", "phone"] as const;
 // 상세는 예정 회차가 있는 클래스만 렌더링하므로(R-59) sessions는 비어 있지 않다.
 export function BookingForm({
   classId,
+  classTitle,
+  place,
+  durationMinutes,
   sessions,
 }: {
   classId: string;
+  classTitle: string;
+  place: string;
+  durationMinutes: number;
   sessions: PublicSession[];
 }): JSX.Element {
   const router = useRouter();
@@ -73,7 +81,21 @@ export function BookingForm({
       method: "POST",
       json: input,
     }),
-    onSuccess: ({ code }) => {
+    onSuccess: ({ code, status }, input) => {
+      // 완료 화면은 서버를 조회하지 않으므로 방금 신청한 내용을 신청자를 가려 같은 탭에 넘긴다.
+      const session = sessions.find((item) => item.id === input.sessionId);
+      if (session) {
+        saveBookingReceipt({
+          code,
+          status,
+          classTitle,
+          place,
+          startsAt: session.startsAt,
+          durationMinutes,
+          headcount: input.headcount,
+          customer: { name: maskName(input.customerName), phone: maskPhone(input.phone) },
+        });
+      }
       router.push(`/bookings/complete?code=${encodeURIComponent(code)}`);
     },
     onError: (error) => {
@@ -293,15 +315,14 @@ export function BookingForm({
       )}
 
       <div className="space-y-3">
-        <div className={noticeClassName}>
-          <Info aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-[var(--color-magenta-600)]" />
-          <div className="min-w-0 space-y-1 break-words">
-            <p>운영자가 확인 후 승인합니다.</p>
-            <p>신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다.</p>
-            <p>결과는 예약 조회에서 직접 확인해 주세요.</p>
-            <p>취소 기한: 승인 대기는 시작 전까지, 참여 확정은 시작 24시간 전까지(정각 포함) 예약 조회에서 직접 취소할 수 있습니다.</p>
-          </div>
-        </div>
+        <InfoNotice>
+          <ul>
+            <li>운영자가 확인 후 승인합니다.</li>
+            <li>신청 후에는 승인 대기 상태이며 참여 확정이 아닙니다.</li>
+            <li>결과는 예약 조회에서 직접 확인해 주세요.</li>
+            <li>취소 기한: 승인 대기는 시작 전까지, 참여 확정은 시작 24시간 전까지(정각 포함) 예약 조회에서 직접 취소할 수 있습니다.</li>
+          </ul>
+        </InfoNotice>
         <div className="max-[901px]:fixed max-[901px]:inset-x-0 max-[901px]:bottom-0 max-[901px]:z-20 max-[901px]:border-t max-[901px]:border-[var(--border-subtle)] max-[901px]:bg-[var(--surface-card)] max-[901px]:px-4 max-[901px]:pt-3 max-[901px]:pb-[max(20px,env(safe-area-inset-bottom))]">
           <Button
             type="submit"

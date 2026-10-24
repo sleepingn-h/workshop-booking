@@ -158,6 +158,16 @@ export type ClassDetail = {
 
 export type CreateBookingResult = { code: string; status: "pending" };
 
+// 신청 폼이 완료 화면에 넘기는 신청 내용이다. 신청자 이름·전화번호는 저장 전에 가린 값이다.
+export type BookingReceipt = CreateBookingResult & {
+  classTitle: string;
+  place: string;
+  startsAt: string;
+  durationMinutes: number;
+  headcount: number;
+  customer: { name: string; phone: string };
+};
+
 export type BookingLookupResult = {
   code: string;
   status: BookingStatus;

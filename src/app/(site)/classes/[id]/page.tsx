@@ -92,7 +92,13 @@ export default async function ClassPage({ params }: PageProps<"/classes/[id]">) 
           </div>
         </article>
 
-        <BookingForm classId={workshop.id} sessions={workshop.sessions} />
+        <BookingForm
+          classId={workshop.id}
+          classTitle={workshop.title}
+          place={workshop.place}
+          durationMinutes={workshop.durationMinutes}
+          sessions={workshop.sessions}
+        />
       </div>
     </div>
   );

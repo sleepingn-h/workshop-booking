@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from "react";
 import { toast } from "sonner";
 
+import { BookingSteps } from "@/components/booking-steps";
 import { LoadingPlaceholder } from "@/components/loading-placeholder";
 import { BookingStatusBadge, Tag } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -244,6 +245,8 @@ export function BookingLookup({ initialCode = "" }: { initialCode?: string }): J
               </Link>
             )}
           </div>
+
+          <BookingSteps status={booking.status} />
 
           <dl className="divide-y divide-[var(--border-subtle)] text-[15px]">
             <div className={rowClassName}>

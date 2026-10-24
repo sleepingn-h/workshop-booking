@@ -2,11 +2,12 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, CircleAlert, Info, Search, X } from "lucide-react";
+import { ChevronDown, CircleAlert, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 
+import { InfoNotice } from "@/components/info-notice";
 import { LoadingPlaceholder } from "@/components/loading-placeholder";
 import { BookingStatusBadge, Tag } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -99,10 +100,9 @@ function BookingRow({ booking, now }: { booking: AdminBooking; now: Date }): JSX
             <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 py-3 max-[641px]:grid-cols-[80px_minmax(0,1fr)]"><dt className="text-[var(--text-muted)]">예약자</dt><dd className="text-[var(--text-strong)]">{booking.customerName} · {formatPhone(booking.phone)}</dd></div>
             <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 border-t border-[var(--border-subtle)] py-3 max-[641px]:grid-cols-[80px_minmax(0,1fr)]"><dt className="text-[var(--text-muted)]">회차</dt><dd className="text-[var(--text-strong)]">{booking.classTitle}<br />{formatKstDateTime(booking.sessionStartsAt)} · {booking.headcount}명</dd></div>
           </dl>
-          <div className="flex items-start gap-2.5 rounded-[var(--radius-control)] bg-[var(--surface-raised)] px-4 py-3.5 text-sm leading-[1.55] text-[var(--text-body)]">
-            <Info aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-[var(--color-primary)]" />
-            <DialogDescription className="min-w-0">{booking.headcount}자리가 다시 열려요. 자동 알림이 없으니 고객에게 직접 연락해 주세요.</DialogDescription>
-          </div>
+          <InfoNotice color="blurple">
+            <DialogDescription>{booking.headcount}자리가 다시 열려요. 자동 알림이 없으니 고객에게 직접 연락해 주세요.</DialogDescription>
+          </InfoNotice>
           {mutation.isError && mutation.variables === dialogAction && (
             <div role="alert" className="flex min-w-0 items-start gap-2 rounded-[var(--radius-control)] bg-[var(--status-danger-bg)] px-3.5 py-3 text-sm font-medium text-[var(--status-danger)]">
               <CircleAlert aria-hidden="true" className="size-5 shrink-0" />

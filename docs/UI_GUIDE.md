@@ -175,6 +175,8 @@ hover: border #7c86f6 · 선택(aria-checked): border #5865f2 + bg #f1f2ff · �
         padding 14px 16px 14px 18px, 최대 폭 440px, 제목 16px/700 + 설명 14px, 3.2초 후 사라짐
 ```
 
+- 왼쪽에 Info 아이콘(18px)을 둔 안내 박스는 `InfoNotice`(`src/components/info-notice.tsx`)로 그린다. 아이콘 색은 기본 magenta-600이고 `color`로 blurple·green을 고를 수 있다. 색은 아이콘에만 쓰고 글씨는 본문색을 유지한다. 문장이 여러 줄이면 `ul`·`li`로 넘기고, 줄마다 왼쪽 들여쓰기 16px에 text-muted색 블릿(•)이 붙는다. 한 문장이면 `p`를 그대로 쓴다.
+
 ### 다이얼로그
 
 ```

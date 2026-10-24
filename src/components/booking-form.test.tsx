@@ -8,6 +8,7 @@ import { ApiError, apiFetch } from "@/lib/api";
 import type { CreateBookingResult, PublicSession } from "@/lib/types";
 
 import { BookingForm } from "./booking-form";
+import { BookingReceiptDetails } from "./booking-receipt";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 
@@ -22,6 +23,7 @@ const sessions: PublicSession[] = [
   { id: "session-2", startsAt: "2026-10-21T05:00:00Z", capacity: 4, remaining: 2 },
   { id: "session-full", startsAt: "2026-10-22T05:00:00Z", capacity: 4, remaining: 0 },
 ];
+const classProps = { classId: "class-1", classTitle: "손으로 빚는 도자기 컵", place: "서울 공방", durationMinutes: 120 };
 const clients: QueryClient[] = [];
 const apiMock = vi.mocked(apiFetch);
 
@@ -31,7 +33,7 @@ function renderForm(initialSessions = sessions) {
   function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
-  return render(<BookingForm classId="class-1" sessions={initialSessions} />, { wrapper: Wrapper });
+  return render(<BookingForm {...classProps} sessions={initialSessions} />, { wrapper: Wrapper });
 }
 
 function headcountGroup() {
@@ -61,6 +63,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clients.splice(0).forEach((client) => client.clear());
+  sessionStorage.clear();
 });
 
 describe("BookingForm", () => {
@@ -153,7 +156,7 @@ describe("BookingForm", () => {
     expectInputsPreserved("3");
   });
 
-  it("R-10, R-31: 수동 승인 방식과 상태별 취소 기한을 신청 버튼 바로 위 안내 상자에 줄을 나눠 안내한다", () => {
+  it("R-10, R-31: 수동 승인 방식과 상태별 취소 기한을 신청 버튼 바로 위 안내 상자에 블릿 목록으로 줄을 나눠 안내한다", () => {
     renderForm();
 
     const lines = [
@@ -162,9 +165,10 @@ describe("BookingForm", () => {
       "결과는 예약 조회에서 직접 확인해 주세요.",
       "취소 기한: 승인 대기는 시작 전까지, 참여 확정은 시작 24시간 전까지(정각 포함) 예약 조회에서 직접 취소할 수 있습니다.",
     ].map((text) => screen.getByText(text));
-    const notice = lines[0].parentElement!;
+    const notice = lines[0].closest("ul")!;
     for (const line of lines) {
       expect(line).toBeVisible();
+      expect(line.tagName).toBe("LI");
       expect(line.parentElement).toBe(notice);
     }
     expect(screen.getByLabelText("전화번호").compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -199,6 +203,26 @@ describe("BookingForm", () => {
       json: { sessionId: "session-1", headcount: 2, customerName: "홍길동", phone: "01012345678" },
     });
     expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("R-10, R-33: 신청에 성공하면 신청자를 가린 신청 내용을 탭에 남긴 뒤 완료 화면으로 이동한다", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue({ code: "BK-TEST01", status: "pending" });
+    renderForm();
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: "예약 신청하기" }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/bookings/complete?code=BK-TEST01"));
+
+    const stored = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.getItem(sessionStorage.key(index)!)).join("");
+    expect(stored).not.toMatch(/홍길동|01012345678|1234-5678/);
+    cleanup();
+    render(<BookingReceiptDetails code="BK-TEST01" />);
+    expect(screen.getByText("승인 대기")).toBeVisible();
+    expect(screen.getByText("손으로 빚는 도자기 컵")).toBeVisible();
+    expect(screen.getByText("홍*동 · 010-****-5678")).toBeVisible();
+    expect(screen.getByText("10월 20일 (화) 오전 1:00–오전 3:00")).toBeVisible();
+    expect(screen.getByText("서울 공방")).toBeVisible();
+    expect(screen.getByText("2명")).toBeVisible();
   });
 
   it("R-11: SESSION_FULL이면 상세를 갱신하고 입력 유지·자리 변경 안내를 제공한다", async () => {
@@ -278,7 +302,7 @@ describe("BookingForm", () => {
     const next = change === "사라짐"
       ? sessions.slice(1)
       : sessions.map((session) => session.id === "session-1" ? { ...session, remaining: 0 } : session);
-    rerender(<BookingForm classId="class-1" sessions={next} />);
+    rerender(<BookingForm {...classProps} sessions={next} />);
 
     expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole("radiogroup")).toHaveAccessibleDescription(/다시 선택해 주세요/);
@@ -291,7 +315,7 @@ describe("BookingForm", () => {
     const user = userEvent.setup();
     const { rerender } = renderForm();
     await fillForm(user, "3");
-    rerender(<BookingForm classId="class-1" sessions={sessions.map((session) => ({ ...session, remaining: 1 }))} />);
+    rerender(<BookingForm {...classProps} sessions={sessions.map((session) => ({ ...session, remaining: 1 }))} />);
     await user.click(screen.getByRole("button", { name: "예약 신청하기" }));
 
     expect(screen.getAllByRole("radio")[0]).toBeChecked();
