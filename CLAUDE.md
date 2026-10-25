@@ -24,7 +24,7 @@
 - CRITICAL: 요청 처리 순서(조회 → 규칙 확인 → 저장)는 `src/lib/db.ts` 함수에 둔다. Service·Repository 계층이나 메모리 저장소를 만들지 않는다(예외: `src/lib/mock-db.ts`의 개발용 읽기 전용 목 데이터 모드 — `MOCK_DB=1`이고 production이 아닐 때만, 변경은 `MOCK_READ_ONLY`로 거부). 조회한 값만으로 변경을 확정하지 않는다.
 - CRITICAL: 예약 생성·상태 변경과 회차 정원 변경·취소·삭제, 클래스 삭제·공개 전환은 `supabase/schema.sql`의 Postgres 함수 한 트랜잭션 안에서 처리한다(행 잠금, R-15).
 - CRITICAL: 요청 시각은 `src/lib/db.ts` 함수 진입 시 DB 조회 전에 한 번 읽어 규칙 함수(`now`)와 Postgres 함수(`p_now`)에 같은 값을 넘긴다. Postgres 함수는 `now()`를 쓰지 않는다.
-- CRITICAL: `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`는 서버 코드에서만 사용하고 브라우저 번들·로그·README에 노출하지 않는다.
+- CRITICAL: `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`는 서버 코드에서만 사용하고 브라우저 번들·로그·README에 노출하지 않는다. 예외: 배포 데모의 `ADMIN_PASSWORD`는 공개 데모용 값으로 두고 README 데모 정보에만 적는다.
 - 클래스 목록·상세 페이지는 `await connection()`으로 동적 렌더링해 빌드 시 사전 렌더링·캐시된 남은 자리를 보여주지 않는다.
 - 이미지 업로드는 운영자 Route Handler가 받아 서버에서 Supabase Storage에 저장한다. 브라우저가 Storage에 직접 올리지 않는다.
 - 운영자 페이지(`/admin` 이하) 보호는 `src/proxy.ts`(Node.js 런타임)에서 한다. `middleware.ts`를 만들지 않는다.
