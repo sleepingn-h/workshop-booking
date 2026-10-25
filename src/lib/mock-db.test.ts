@@ -106,22 +106,23 @@ describe("고객 클래스 조회", () => {
   });
 
   it("R-59 요청 시각에 예정 회차가 없어진 공개 클래스는 목록·상세에서 숨긴다", () => {
-    const afterLeather = new Date(at(7 * DAY));
-    const lastStart = Date.parse(kstAt(32, 16));
+    const afterLeather = new Date(at(66 * DAY));
+    const lastStart = Date.parse(kstAt(66, 16));
     const visibleIds = (requestedAt: Date) => db.mockListPublishedClasses(requestedAt).map(({ id }) => id);
-    expect(visibleIds(new Date(at(6 * DAY)))).toEqual([leatherId, ...listingIds]);
-    expect(visibleIds(afterLeather)).toEqual(listingIds);
+    expect(visibleIds(new Date(at(56 * DAY)))).toEqual([potteryId, leatherId, ...listingIds]);
+    expect(visibleIds(new Date(at(65 * DAY)))).toEqual([leatherId, classId(13), classId(14)]);
+    expect(visibleIds(afterLeather)).toEqual([classId(14)]);
     expect(visibleIds(new Date(lastStart - 1))).toEqual([classId(14)]);
     expect(db.mockListPublishedClasses(new Date(lastStart))).toEqual([]);
-    expect(db.mockGetPublishedClass(potteryId, new Date(at(5 * DAY)))).toBeNull();
+    expect(db.mockGetPublishedClass(potteryId, new Date(at(64 * DAY)))).toBeNull();
     expect(db.mockGetPublishedClass(leatherId, afterLeather)).toBeNull();
   });
 
-  it("R-54 R-59 목록용 클래스 E~N은 서울 기준 정각에 2주 간격의 빈 회차 2개를 가진다", () => {
+  it("R-54 R-59 목록용 클래스 E~N은 서울 기준 정각에 48일 간격의 빈 회차 2개를 가진다", () => {
     listingClasses.forEach(({ n, hour, capacity }, index) => {
       expect(db.mockGetPublishedClass(classId(n), now)?.sessions).toEqual([
         { id: sessionId(8 + index), startsAt: kstAt(9 + index, hour), capacity, remaining: capacity },
-        { id: sessionId(18 + index), startsAt: kstAt(23 + index, hour), capacity, remaining: capacity },
+        { id: sessionId(18 + index), startsAt: kstAt(57 + index, hour), capacity, remaining: capacity },
       ]);
     });
   });
@@ -145,15 +146,15 @@ describe("고객 클래스 조회", () => {
       id: potteryId,
       sessions: [
         { id: sessionId(3), startsAt: at(20 * HOUR), capacity: 4, remaining: 3 },
-        { id: sessionId(1), startsAt: at(4 * DAY), capacity: 6, remaining: 4 },
-        { id: sessionId(2), startsAt: at(5 * DAY), capacity: 4, remaining: 0 },
+        { id: sessionId(1), startsAt: at(63 * DAY), capacity: 6, remaining: 4 },
+        { id: sessionId(2), startsAt: at(64 * DAY), capacity: 4, remaining: 0 },
       ],
     });
   });
 
   it("R-01 R-02 R-03 거절·취소 인원은 가죽 회차의 자리를 차지하지 않는다", () => {
     expect(db.mockGetPublishedClass(leatherId, now)?.sessions).toEqual([
-      { id: sessionId(6), startsAt: at(7 * DAY), capacity: 6, remaining: 5 },
+      { id: sessionId(6), startsAt: at(66 * DAY), capacity: 6, remaining: 5 },
     ]);
   });
 
@@ -193,9 +194,9 @@ describe("고객 예약 조회", () => {
         materials: "없음",
         contact: "010-0000-9001 (시연용 가상 번호)",
       },
-      session: { startsAt: at(4 * DAY), status: "scheduled" },
+      session: { startsAt: at(63 * DAY), status: "scheduled" },
       canCancel: true,
-      cancelDeadline: at(4 * DAY),
+      cancelDeadline: at(63 * DAY),
     });
   });
 
@@ -222,16 +223,16 @@ describe("고객 예약 조회", () => {
     }));
   });
 
-  it("R-31 20시간 후 확정 예약은 취소 불가이고 5일 후 확정 예약은 가능하다", () => {
+  it("R-31 20시간 후 확정 예약은 취소 불가이고 64일 후 확정 예약은 가능하다", () => {
     expect(db.mockLookupBooking(credentials(4), now)).toMatchObject({ canCancel: false, cancelDeadline: at(-4 * HOUR) });
-    expect(db.mockLookupBooking(credentials(3), now)).toMatchObject({ canCancel: true, cancelDeadline: at(4 * DAY) });
+    expect(db.mockLookupBooking(credentials(3), now)).toMatchObject({ canCancel: true, cancelDeadline: at(63 * DAY) });
   });
 
   it("R-31 확정은 정확히 24시간 전까지, 승인 대기는 시작 직전까지만 취소 가능하다", () => {
-    expect(db.mockLookupBooking(credentials(3), new Date(at(4 * DAY))).canCancel).toBe(true);
-    expect(db.mockLookupBooking(credentials(3), new Date(now.getTime() + 4 * DAY + 1)).canCancel).toBe(false);
-    expect(db.mockLookupBooking(credentials(1), new Date(now.getTime() + 4 * DAY - 1)).canCancel).toBe(true);
-    expect(db.mockLookupBooking(credentials(1), new Date(at(4 * DAY))).canCancel).toBe(false);
+    expect(db.mockLookupBooking(credentials(3), new Date(at(63 * DAY))).canCancel).toBe(true);
+    expect(db.mockLookupBooking(credentials(3), new Date(now.getTime() + 63 * DAY + 1)).canCancel).toBe(false);
+    expect(db.mockLookupBooking(credentials(1), new Date(now.getTime() + 63 * DAY - 1)).canCancel).toBe(true);
+    expect(db.mockLookupBooking(credentials(1), new Date(at(63 * DAY))).canCancel).toBe(false);
   });
 
   it("R-21 R-31 R-33 시작한 승인 대기와 최종 상태는 직접 취소할 수 없다", () => {
@@ -243,7 +244,7 @@ describe("고객 예약 조회", () => {
 
   it("R-30 R-59 예정 회차가 있는 공개 클래스만 상세 링크용 id를 주고, 없어지면 예약만 조회한다", () => {
     expect(db.mockLookupBooking(credentials(1), now)).toMatchObject({ class: { id: potteryId } });
-    expect(db.mockLookupBooking(credentials(1), new Date(at(5 * DAY)))).toMatchObject({ code: "BK-DEMO01", class: { id: null, title: "손으로 빚는 도자기 컵" } });
+    expect(db.mockLookupBooking(credentials(1), new Date(at(64 * DAY)))).toMatchObject({ code: "BK-DEMO01", class: { id: null, title: "손으로 빚는 도자기 컵" } });
   });
 
   it("R-42 R-52 비공개 클래스와 취소된 회차의 기존 예약을 조회할 수 있다", () => {
@@ -263,8 +264,9 @@ describe("운영자 예약 목록", () => {
       "BK-DEMO05", "BK-DEMO04", "BK-DEMO01", "BK-DEMO02", "BK-DEMO03",
       "BK-DEMO06", "BK-DEMO07", "BK-DEMO11", "BK-DEMO08", "BK-DEMO09", "BK-DEMO10",
     ]);
-    const listingSessions = Array.from({ length: 20 }, (_, index) => 8 + index);
-    expect(result.sessions.map(({ id }) => id)).toEqual([4, 3, 1, 2, 5, 7, 6, ...listingSessions].map(sessionId));
+    // 63~66일 뒤 시연 회차(1·2·5·7·6)는 같은 날의 목록용 둘째 회차와 시작 시각 순으로 섞인다.
+    const listingBeforeDemo = Array.from({ length: 16 }, (_, index) => 8 + index);
+    expect(result.sessions.map(({ id }) => id)).toEqual([4, 3, ...listingBeforeDemo, 24, 1, 25, 2, 5, 7, 26, 6, 27].map(sessionId));
     expect(result.sessions.find(({ id }) => id === sessionId(5))?.status).toBe("cancelled");
     expect(result.sessions.find(({ id }) => id === sessionId(7))?.classTitle).toBe("향을 고르는 캔들 클래스");
   });
@@ -335,9 +337,9 @@ describe("운영자 클래스 조회", () => {
     expect(db.mockGetAdminClass(potteryId, now).sessions).toEqual([
       { id: sessionId(4), startsAt: at(-2 * HOUR), capacity: 4, status: "scheduled", occupied: 1, bookingCount: 1, pendingCount: 1 },
       { id: sessionId(3), startsAt: at(20 * HOUR), capacity: 4, status: "scheduled", occupied: 1, bookingCount: 1, pendingCount: 0 },
-      { id: sessionId(1), startsAt: at(4 * DAY), capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1, pendingCount: 1 },
-      { id: sessionId(2), startsAt: at(5 * DAY), capacity: 4, status: "scheduled", occupied: 4, bookingCount: 2, pendingCount: 1 },
-      { id: sessionId(5), startsAt: at(6 * DAY), capacity: 4, status: "cancelled", occupied: 0, bookingCount: 2, pendingCount: 0 },
+      { id: sessionId(1), startsAt: at(63 * DAY), capacity: 6, status: "scheduled", occupied: 2, bookingCount: 1, pendingCount: 1 },
+      { id: sessionId(2), startsAt: at(64 * DAY), capacity: 4, status: "scheduled", occupied: 4, bookingCount: 2, pendingCount: 1 },
+      { id: sessionId(5), startsAt: at(65 * DAY), capacity: 4, status: "cancelled", occupied: 0, bookingCount: 2, pendingCount: 0 },
     ]);
     expect(db.mockGetAdminClass(leatherId, now).sessions[0]).toMatchObject({ occupied: 1, bookingCount: 3, pendingCount: 1 });
     expect(db.mockGetAdminClass(flowerId, now).sessions).toEqual([]);

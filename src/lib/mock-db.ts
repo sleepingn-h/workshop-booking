@@ -222,13 +222,13 @@ const CLASSES: readonly SampleClass[] = [
   },
 ];
 
-// 클래스 E~N의 [시작 정각(서울), 정원]. 첫 회차는 9~18일 뒤, 둘째 회차는 그 2주 뒤다.
+// 클래스 E~N의 [시작 정각(서울), 정원]. 첫 회차는 9~18일 뒤, 둘째 회차는 57~66일 뒤다.
 const LISTING_SCHEDULE: readonly (readonly [hour: number, capacity: number])[] = [
   [15, 6], [14, 4], [19, 8], [10, 6], [15, 8], [11, 8], [11, 10], [14, 6], [19, 6], [16, 10],
 ];
 const KST_OFFSET = 9 * HOUR;
 const KST_MIDNIGHT = Math.floor((BASE_TIME + KST_OFFSET) / DAY) * DAY - KST_OFFSET;
-const LISTING_SESSIONS: readonly SampleSession[] = [9, 23].flatMap((firstDay, round) =>
+const LISTING_SESSIONS: readonly SampleSession[] = [9, 57].flatMap((firstDay, round) =>
   LISTING_SCHEDULE.map(([hour, capacity], index) => ({
     id: `20000000-0000-4000-8000-${String(8 + round * 10 + index).padStart(12, "0")}`,
     classId: `10000000-0000-4000-8000-${String(5 + index).padStart(12, "0")}`,
@@ -237,17 +237,18 @@ const LISTING_SESSIONS: readonly SampleSession[] = [9, 23].flatMap((firstDay, ro
   })));
 
 // 모듈 로드 시 한 번만 계산한다. 조회 시각으로 샘플 일정을 옮기지 않는다.
+// 20시간 후·2시간 전 회차를 뺀 시연 회차는 초기화 없이 두 달 가까이 시연하도록 63~66일 뒤에 둔다.
 const SESSIONS: readonly SampleSession[] = [
   {
     id: "20000000-0000-4000-8000-000000000001",
     classId: "10000000-0000-4000-8000-000000000001",
-    startsAt: new Date(BASE_TIME + 4 * DAY).toISOString(),
+    startsAt: new Date(BASE_TIME + 63 * DAY).toISOString(),
     capacity: 6, status: "scheduled",
   },
   {
     id: "20000000-0000-4000-8000-000000000002",
     classId: "10000000-0000-4000-8000-000000000001",
-    startsAt: new Date(BASE_TIME + 5 * DAY).toISOString(),
+    startsAt: new Date(BASE_TIME + 64 * DAY).toISOString(),
     capacity: 4, status: "scheduled",
   },
   {
@@ -265,19 +266,19 @@ const SESSIONS: readonly SampleSession[] = [
   {
     id: "20000000-0000-4000-8000-000000000005",
     classId: "10000000-0000-4000-8000-000000000001",
-    startsAt: new Date(BASE_TIME + 6 * DAY).toISOString(),
+    startsAt: new Date(BASE_TIME + 65 * DAY).toISOString(),
     capacity: 4, status: "cancelled",
   },
   {
     id: "20000000-0000-4000-8000-000000000006",
     classId: "10000000-0000-4000-8000-000000000002",
-    startsAt: new Date(BASE_TIME + 7 * DAY).toISOString(),
+    startsAt: new Date(BASE_TIME + 66 * DAY).toISOString(),
     capacity: 6, status: "scheduled",
   },
   {
     id: "20000000-0000-4000-8000-000000000007",
     classId: "10000000-0000-4000-8000-000000000004",
-    startsAt: new Date(BASE_TIME + 6 * DAY).toISOString(),
+    startsAt: new Date(BASE_TIME + 65 * DAY).toISOString(),
     capacity: 4, status: "scheduled",
   },
   ...LISTING_SESSIONS,
