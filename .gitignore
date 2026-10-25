@@ -1,6 +1,7 @@
 refs/
 docs/PLAN.md
 docs/SPEC.md
+.mcp.json
 .DS_Store
 
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
